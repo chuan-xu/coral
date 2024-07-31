@@ -18,13 +18,23 @@ pub fn runtime(start: usize, nums: usize, th_name_pre: &'static str) -> Result<(
             let id = ATOMIC_ID.fetch_add(1, atomic::Ordering::SeqCst);
             format!("{}-{}", th_name_pre, id)
         })
-        .on_thread_start(|| {
-            if let Some(thnm) = std::thread::current().name() {
-                // thnm.sp
+        .on_thread_start(move || {
+            if let Ok(index) = get_thread_index() {
+                if !core_affinity::set_for_current(cores[index].clone()) {
+                    todo!()
+                }
             } else {
+                todo!()
             }
         });
     Ok(())
+}
+
+/// 从`th_name`中提取线程编号
+fn get_thread_index() -> Result<usize, Error> {
+    let current = std::thread::current();
+    let name = current.name().ok_or(Error::NoneThreadName)?;
+    name.rfind("-").ok_or(Error::NoneThreadIndex)
 }
 
 /// 获取从`start`开始的共`nums`个的cores
@@ -44,5 +54,12 @@ mod tests {
     fn get_cpu_cores() {
         let cpus = num_cpus::get();
         assert!(cpu_cores(1, cpus).is_err());
+    }
+
+    #[test]
+    fn split_thname() {
+        let thname = "coral-proxy-1";
+        let idx = thname.rfind("-").unwrap();
+        println!("{:?}", &thname[idx..]);
     }
 }

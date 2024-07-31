@@ -6,4 +6,8 @@ pub enum Error {
     NoneCoreIds,
     #[error("get core ids out of bounds")]
     OutBoundsCoreIds,
+    #[error("can not get thread name")]
+    NoneThreadName,
+    #[error("can not get index from thread name")]
+    NoneThreadIndex,
 }
