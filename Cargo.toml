@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+  # "coral-log",
+  # "coral-proxy",
+  "coral-runtime",
+  # "coral-server"
+]
