@@ -1,12 +1,13 @@
 mod error;
+mod format;
 
 pub fn get() {
-    // let fmt = tracing_subscriber::fmt().compact()
+    // let cmt = tracing_subscriber::fmt().compact();
+    // let pret = tracing_subscriber::fmt().pretty().finish();
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn it_works() {}

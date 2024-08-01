@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package Record;
+
+enum Level {
+  TRACE = 0;
+  DEBUG = 1;
+  INFO = 2;
+  WARN = 3;
+  ERROR = 4;
+}
+
+enum Type {
+  I = 0;
+  F = 1;
+  S = 2;
+}
+
+message FieldVal {
+  Type type = 1;
+  string val = 2;
+}
+
+message Span {
+  string name = 1;
+  map<string, FieldVal> fields = 2;
+}
+
+message Event {
+  string name = 1;
+  map<string, FieldVal> fields = 2;
+}
+
+message Record {
+  string timestamp = 1;
+  Level level = 2;
+  string thread_name = 3;
+  string file = 4;
+  string line = 5;
+  repeated Span spans = 6;
+  Span span = 7;
+  Event event = 8;
+}
