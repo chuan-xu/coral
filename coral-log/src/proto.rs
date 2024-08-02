@@ -15,7 +15,7 @@ where
     fn format_event(
         &self,
         ctx: &crate::format::FmtContext<'_, S, N>,
-        // writer: Writer<'_>,
+        rp: &mut record_proto::Record,
         event: &tracing::Event<'_>,
     ) -> Result<(), ()> {
         todo!()

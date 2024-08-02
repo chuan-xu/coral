@@ -1,5 +1,6 @@
 use std::{any::TypeId, cell::RefCell, marker::PhantomData};
 
+use prost::Message;
 use tracing::{span, Event, Subscriber};
 use tracing_subscriber::{
     field::RecordFields,
@@ -9,7 +10,10 @@ use tracing_subscriber::{
     Registry,
 };
 
-use crate::proto::{ProtoEvent, ProtoFields};
+use crate::{
+    proto::{ProtoEvent, ProtoFields},
+    record_proto::Record,
+};
 
 pub struct Layer<S, N = ProtoFields, E = ProtoEvent, W = fn() -> std::io::Stdout> {
     make_writer: W,
@@ -127,7 +131,8 @@ where
 
     fn on_event(&self, event: &Event<'_>, ctx: layer::Context<'_, S>) {
         thread_local! {
-            static BUF: RefCell<String> = RefCell::new(String::new());
+            // static BUF: RefCell<String> = RefCell::new(String::new());
+            static BUF: RefCell<Record> = RefCell::new(Record::default());
         }
 
         BUF.with(|buf| {
@@ -140,7 +145,7 @@ where
                     &mut *a
                 }
                 _ => {
-                    b = String::new();
+                    b = Record::default();
                     &mut b
                 }
             };
@@ -150,14 +155,14 @@ where
                 .fmt_event
                 .format_event(
                     &ctx,
-                    // TODO
-                    // format::Writer::new(&mut buf).with_ansi(self.is_ansi),
+                    buf,
                     event,
                 )
                 .is_ok()
             {
                 let mut writer = self.make_writer.make_writer_for(event.metadata());
-                let res = std::io::Write::write_all(&mut writer, buf.as_bytes());
+                let c = buf.encode_to_vec();
+                let res = std::io::Write::write_all(&mut writer, &c);
                 if self.log_internal_errors {
                     if let Err(e) = res {
                         eprintln!("[tracing-subscriber] Unable to write an event to the Writer for this Subscriber! Error: {}\n", e);
@@ -229,7 +234,7 @@ where
     fn format_event(
         &self,
         ctx: &FmtContext<'_, S, N>,
-        // writer: Writer<'_>,
+        rp: &mut Record,
         event: &Event<'_>,
     ) -> Result<(), ()>;
 }
