@@ -2,8 +2,8 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FieldVal {
-    #[prost(enumeration = "Type", tag = "1")]
-    pub r#type: i32,
+    #[prost(enumeration = "Kind", tag = "1")]
+    pub kind: i32,
     #[prost(string, tag = "2")]
     pub val: ::prost::alloc::string::String,
 }
@@ -12,14 +12,16 @@ pub struct FieldVal {
 pub struct Span {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
-    #[prost(map = "string, message", tag = "2")]
+    #[prost(string, tag = "2")]
+    pub msg: ::prost::alloc::string::String,
+    #[prost(map = "string, message", tag = "3")]
     pub fields: ::std::collections::HashMap<::prost::alloc::string::String, FieldVal>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Event {
     #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
+    pub msg: ::prost::alloc::string::String,
     #[prost(map = "string, message", tag = "2")]
     pub fields: ::std::collections::HashMap<::prost::alloc::string::String, FieldVal>,
 }
@@ -80,26 +82,29 @@ impl Level {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
-pub enum Type {
-    I = 0,
-    F = 1,
-    S = 2,
+pub enum Kind {
+    B = 0,
+    I = 1,
+    F = 2,
+    S = 3,
 }
-impl Type {
+impl Kind {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Type::I => "I",
-            Type::F => "F",
-            Type::S => "S",
+            Kind::B => "B",
+            Kind::I => "I",
+            Kind::F => "F",
+            Kind::S => "S",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
+            "B" => Some(Self::B),
             "I" => Some(Self::I),
             "F" => Some(Self::F),
             "S" => Some(Self::S),

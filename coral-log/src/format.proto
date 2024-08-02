@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package Record;
+package record_proto;
 
 enum Level {
   TRACE = 0;
@@ -10,24 +10,26 @@ enum Level {
   ERROR = 4;
 }
 
-enum Type {
-  I = 0;
-  F = 1;
-  S = 2;
+enum Kind {
+  B = 0;
+  I = 1;
+  F = 2;
+  S = 3;
 }
 
 message FieldVal {
-  Type type = 1;
+  Kind kind = 1;
   string val = 2;
 }
 
 message Span {
   string name = 1;
-  map<string, FieldVal> fields = 2;
+  string msg = 2;
+  map<string, FieldVal> fields = 3;
 }
 
 message Event {
-  string name = 1;
+  string msg = 1;
   map<string, FieldVal> fields = 2;
 }
 
