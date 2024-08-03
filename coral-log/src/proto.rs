@@ -1,61 +1,101 @@
-use tracing::Subscriber;
-use tracing_subscriber::registry::LookupSpan;
+use std::sync::atomic::AtomicPtr;
 
-use crate::format::{FormatEvent, FormatFields};
-use crate::record_proto;
+use chrono::format::{Fixed, Item};
+use tracing::{Level, Metadata};
 
-#[derive(Default)]
-pub struct ProtoEvent;
+use crate::record_proto::{self, Fields, Meta};
 
-impl<S, N> FormatEvent<S, N> for ProtoEvent
-where
-    S: Subscriber + for<'a> LookupSpan<'a>,
-    // N: for<'a> FormatFields<'a> + 'static,
-{
-    fn format_event(
-        &self,
-        ctx: &crate::format::FmtContext<'_, S, N>,
-        rp: &mut record_proto::Record,
-        event: &tracing::Event<'_>,
-    ) -> Result<(), ()> {
-        todo!()
-    }
+pub fn create_sync_fields() -> AtomicPtr<Fields> {
+    let fields = Box::leak(Box::new(Fields::default()));
+    AtomicPtr::new(fields)
 }
 
-#[derive(Default)]
-pub struct ProtoFields {
-    _private: (),
-}
+impl record_proto::Record {
+    pub(crate) fn format_metadata(&mut self, meta: &Metadata) {
+        self.format_timestamp();
 
-impl FormatFields for ProtoFields {
-    fn format_fields<R: tracing_subscriber::prelude::__tracing_subscriber_field_RecordFields>(
-        &self,
-        // writer: Writer<'writer>,
-        fields: R,
-    ) -> Result<(), ()> {
-        let mut v = ProtoVistor::new();
-        fields.record(&mut v);
-        Ok(())
-    }
-}
+        self.format_level(meta.level());
 
-struct ProtoVistor<'a> {
-    fields: std::collections::HashMap<&'a str, record_proto::FieldVal>,
-}
+        if let Some(file) = meta.file() {
+            self.file = file.to_owned();
+        }
 
-impl<'a> ProtoVistor<'a> {
-    fn new() -> Self {
-        Self {
-            fields: std::collections::HashMap::new(),
+        if let Some(line) = meta.line() {
+            self.line = line;
         }
     }
-    fn add_field(&mut self, kind: i32, key: &'a str, val: String) {
-        self.fields
-            .insert(key, record_proto::FieldVal { kind, val });
+
+    pub(crate) fn format_timestamp(&mut self) {
+        let t = chrono::Local::now();
+        self.timestamp = t
+            .format_with_items(core::iter::once(Item::Fixed(Fixed::RFC3339)))
+            .to_string();
+    }
+
+    pub(crate) fn format_level(&mut self, level: &Level) {
+        match level.as_str() {
+            "TRACE" => self.level = 0,
+            "DEBUG" => self.level = 1,
+            "INFO" => self.level = 2,
+            "WARN" => self.level = 3,
+            "ERROR" => self.level = 4,
+            _ => {
+                //TODO
+            }
+        }
+    }
+
+    pub(crate) fn format_thread_name(&mut self) {
+        if let Some(name) = std::thread::current().name() {
+            self.thread_name = name.to_string();
+        }
+    }
+
+    pub(crate) fn format_file(&mut self, file: Option<&str>) {
+        if let Some(f) = file {
+            self.file = f.to_owned();
+        }
+    }
+
+    pub(crate) fn format_line(&mut self, line: Option<u32>) {
+        if let Some(v) = line {
+            self.line = v;
+        }
+    }
+
+    pub(crate) fn format_event(&mut self, event: &tracing::Event<'_>) {
+        let mut event_fields = Fields::default();
+        event.record(&mut event_fields);
+        let mut meta = record_proto::Meta::new(event.metadata().name());
+        meta.fields = event_fields.take();
+        self.event = Some(meta);
     }
 }
 
-impl<'a> tracing::field::Visit for ProtoVistor<'a> {
+impl Meta {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            fields: Vec::new(),
+        }
+    }
+}
+
+impl Fields {
+    fn add_field(&mut self, kind: i32, key: &str, val: String) {
+        self.inner.push(record_proto::Field {
+            kind,
+            key: key.to_string(),
+            val,
+        });
+    }
+
+    pub fn take(&mut self) -> Vec<record_proto::Field> {
+        std::mem::take(&mut self.inner)
+    }
+}
+
+impl tracing::field::Visit for Fields {
     fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
         self.add_field(2, field.name(), value.to_string());
         // self.record_debug(field, &value)
@@ -78,17 +118,11 @@ impl<'a> tracing::field::Visit for ProtoVistor<'a> {
 
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
         self.add_field(3, field.name(), value.to_string());
-        // self.record_debug(field, &value)
     }
 
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         self.add_field(3, field.name(), format!("{:?}", value));
     }
-}
-
-fn fmt1() {
-    // let f = tracing_subscriber::fmt().json().finish();
-    // let f1 = tracing_subscriber::fmt().compact().with_max_level();
 }
 
 #[cfg(test)]

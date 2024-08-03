@@ -1,8 +1,7 @@
-#![allow(unused)]
 use tracing::Level;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 pub use tracing_appender::rolling::Rotation;
-use tracing_subscriber::{fmt, layer::SubscriberExt};
+use tracing_subscriber::{fmt, layer::SubscriberExt, Layer, Registry};
 
 mod error;
 mod format;
@@ -12,14 +11,6 @@ mod record_proto;
 #[cfg(not(debug_assertions))]
 pub mod record_proto {
     include!(concat!(".", "/record_proto.rs"));
-}
-
-fn test() {
-    use tracing_subscriber::Layer;
-    let l1 = format::Layer::default();
-    let l2 = tracing_subscriber::Registry::default().with(l1);
-    let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
-    let l3 = f.with_subscriber(l2);
 }
 
 type Format = fmt::format::Format<fmt::format::Compact, fmt::time::ChronoLocal>;
@@ -77,17 +68,22 @@ impl LogWriterHandler {
     }
 }
 
-// pub fn subscriber(is_debug: bool, fmt: ) {
-//     let level = match is_debug {
-//         true => Level::TRACE,
-//         false => Level::INFO,
-//     };
-//     let subscriber = tracing_subscriber::FmtSubscriber::builder()
-//         .event_format(f1)
-//         .with_writer(fileout)
-//         .with_max_level(level)
-//         .finish();
+// fn test() {
+//     use tracing_subscriber::Layer;
+//     let l1 = format::Layer::default();
+//     let l2 = tracing_subscriber::Registry::default().with(l1);
+//     let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
+//     let l3 = f.with_subscriber(l2);
 // }
+
+pub fn subscriber(is_debug: bool) {
+    let level = match is_debug {
+        true => Level::TRACE,
+        false => Level::INFO,
+    };
+    let subscriber = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL
+        .with_subscriber(Registry::default().with(format::Layer::default()));
+}
 
 #[cfg(test)]
 mod tests {
