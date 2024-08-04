@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub struct Layer<S, W = fn() -> std::io::Stdout> {
-    make_writer: W,
+    writer: W,
     log_internal_errors: bool,
     _inner: PhantomData<fn(S)>,
 }
@@ -24,7 +24,7 @@ pub struct Layer<S, W = fn() -> std::io::Stdout> {
 impl<S> Default for Layer<S> {
     fn default() -> Self {
         Self {
-            make_writer: std::io::stdout,
+            writer: std::io::stdout,
             log_internal_errors: false,
             _inner: PhantomData,
         }
@@ -36,14 +36,13 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
     W: for<'writer> MakeWriter<'writer> + 'static,
 {
-    // #[inline]
-    // fn make_ctx<'a>(&'a self, ctx: Context<'a, S>, event: &'a Event<'a>) -> FmtContext<'a, S, N> {
-    //     FmtContext {
-    //         ctx,
-    //         fmt_fields: &self.struct_fields,
-    //         event,
-    //     }
-    // }
+    pub fn new(writer: W) -> Self {
+        Self {
+            writer,
+            log_internal_errors: true,
+            _inner: PhantomData,
+        }
+    }
 }
 
 impl<S, W> layer::Layer<S> for Layer<S, W>
@@ -153,13 +152,14 @@ where
                         );
                     }
                 }
+                buf.spans.push(proto_span);
             }
             let enc_data = buf.encode_to_vec();
             let mut bytes_buf = bytes::BytesMut::with_capacity(1024);
             bytes_buf.put_u64(enc_data.len() as u64);
             bytes_buf.put_slice(&enc_data);
             let enc_bytes = bytes_buf.freeze();
-            let mut writer = self.make_writer.make_writer();
+            let mut writer = self.writer.make_writer();
             let res = std::io::Write::write_all(&mut writer, &enc_bytes);
             if self.log_internal_errors {
                 if let Err(e) = res {
@@ -185,7 +185,7 @@ where
         // this *may* be somewhat niche, though...
         match () {
             _ if id == TypeId::of::<Self>() => Some(self as *const Self as *const ()),
-            _ if id == TypeId::of::<W>() => Some(&self.make_writer as *const W as *const ()),
+            _ if id == TypeId::of::<W>() => Some(&self.writer as *const W as *const ()),
             _ => None,
         }
     }

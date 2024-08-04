@@ -12,7 +12,15 @@ prost-types = "0.13"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "tracing-log", "std", "chrono"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "tracing-log", "std", "chrono", "json"] }
 
 [build-dependencies]
 prost-build = "0.13"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }
+criterion = { version = "0.5", default-features = false, features = ["stable", "rayon", "plotters"] }
+
+[[bench]]
+name = "benchdisk"
+harness = false

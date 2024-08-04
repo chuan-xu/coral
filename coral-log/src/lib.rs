@@ -1,7 +1,6 @@
-use tracing::Level;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 pub use tracing_appender::rolling::Rotation;
-use tracing_subscriber::{fmt, layer::SubscriberExt, Layer, Registry};
+use tracing_subscriber::{layer::SubscriberExt, Layer};
 
 mod error;
 mod format;
@@ -13,19 +12,15 @@ pub mod record_proto {
     include!(concat!(".", "/record_proto.rs"));
 }
 
-type Format = fmt::format::Format<fmt::format::Compact, fmt::time::ChronoLocal>;
-
-pub struct LogWriterHandler {
-    format: Format,
+pub struct WriterHandler {
     writer: NonBlocking,
     _guard: WorkerGuard,
 }
 
-impl LogWriterHandler {
+impl WriterHandler {
     pub fn stdout() -> Self {
         let (stdout, _guard) = tracing_appender::non_blocking(std::io::stdout());
         Self {
-            format: Self::format(true),
             writer: stdout,
             _guard,
         }
@@ -40,7 +35,6 @@ impl LogWriterHandler {
             tracing_appender::rolling::RollingFileAppender::new(rotation, directory, prefix);
         let (fileout, _guard) = tracing_appender::non_blocking(appender);
         Self {
-            format: Self::format(false),
             writer: fileout,
             _guard,
         }
@@ -49,45 +43,114 @@ impl LogWriterHandler {
     pub fn get_writer(&self) -> NonBlocking {
         self.writer.clone()
     }
-
-    fn format(
-        is_debug: bool,
-    ) -> tracing_subscriber::fmt::format::Format<
-        tracing_subscriber::fmt::format::Compact,
-        tracing_subscriber::fmt::time::ChronoLocal,
-    > {
-        tracing_subscriber::fmt::format()
-            .compact()
-            .with_ansi(is_debug)
-            .with_target(true)
-            .with_level(true)
-            .with_thread_names(true)
-            .with_file(true)
-            .with_line_number(true)
-            .with_timer(tracing_subscriber::fmt::time::ChronoLocal::rfc_3339())
-    }
 }
 
-// fn test() {
-//     use tracing_subscriber::Layer;
-//     let l1 = format::Layer::default();
-//     let l2 = tracing_subscriber::Registry::default().with(l1);
-//     let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
-//     let l3 = f.with_subscriber(l2);
-// }
-
-pub fn subscriber(is_debug: bool) {
-    let level = match is_debug {
-        true => Level::TRACE,
-        false => Level::INFO,
-    };
-    let subscriber = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL
-        .with_subscriber(Registry::default().with(format::Layer::default()));
+pub fn subscriber(
+    writer: NonBlocking,
+) -> tracing_subscriber::layer::Layered<
+    tracing::level_filters::LevelFilter,
+    tracing_subscriber::layer::Layered<
+        format::Layer<tracing_subscriber::Registry, NonBlocking>,
+        tracing_subscriber::Registry,
+    >,
+> {
+    let layer = format::Layer::new(writer);
+    let layered = tracing_subscriber::Registry::default().with(layer);
+    tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layered)
 }
 
 #[cfg(test)]
 mod tests {
 
+    use bytes::BufMut;
+    use prost::Message;
+    use tracing::{info, instrument, Level};
+    use tracing_appender::rolling::Rotation;
+    use tracing_subscriber::{layer::SubscriberExt, Layer};
+
+    use crate::{
+        format,
+        record_proto::{self},
+        WriterHandler,
+    };
+
+    #[tracing::instrument]
+    fn snay() {
+        info!("hello world");
+    }
+
     #[test]
-    fn it_works() {}
+    fn test_proto() {
+        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Some(Rotation::DAILY));
+        let l = format::Layer::new(hand.writer);
+        let l1 = tracing_subscriber::Registry::default().with(l);
+        let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
+        let t = f.with_subscriber(l1);
+        tracing::subscriber::set_global_default(t).unwrap();
+        // snay();
+        let v = 11;
+        let span = tracing::span!(Level::INFO, "my_span", val = v, "some message");
+        let _guard = span.enter();
+        let span1 = tracing::span!(Level::INFO, "my_span1");
+        let _guard1 = span1.enter();
+        drop(_guard1);
+        tracing::event!(Level::ERROR, name = "luli", "in event");
+        tracing::event!(Level::ERROR, name = "luli", "in event1");
+        // println!("finish");
+    }
+
+    #[test]
+    fn parse_log() {
+        let mut f = std::fs::File::open("/root/tmp/log/proto.log.2024-08-04").unwrap();
+        let mut buf = bytes::BytesMut::with_capacity(1024).writer();
+        std::io::copy(&mut f, &mut buf).unwrap();
+        let b = buf.into_inner().freeze();
+        let mut i = 0;
+        while i < b.len() {
+            let s: [u8; 8] = b[i..i + 8].try_into().unwrap();
+            let size = u64::from_be_bytes(s) as usize;
+            i += 8;
+            let r = record_proto::Record::decode(&b[i..i + size]).unwrap();
+            println!("{:?}", r);
+            i += size;
+        }
+    }
+
+    #[instrument]
+    async fn f1(_val: u32) {
+        info!("before sleep");
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        info!(val = _val, "after sleep");
+    }
+
+    #[test]
+    fn async_log() {
+        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Some(Rotation::DAILY));
+        let l = format::Layer::new(hand.writer);
+        let l1 = tracing_subscriber::Registry::default().with(l);
+        let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
+        let t = f.with_subscriber(l1);
+        tracing::subscriber::set_global_default(t).unwrap();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(3)
+            .enable_all()
+            .build()
+            .unwrap();
+
+        rt.block_on(async {
+            tokio::spawn(f1(11));
+            tokio::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                println!("after sleep 4");
+            });
+            tokio::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(100)).await;
+                println!("after sleep 4");
+            });
+            tokio::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_secs(100)).await;
+                println!("after sleep 4");
+            });
+        });
+    }
 }
