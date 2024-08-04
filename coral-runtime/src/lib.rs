@@ -2,15 +2,23 @@ mod error;
 
 pub use tokio;
 
-use error::Error;
+pub use error::Error;
 use std::sync::atomic;
 
 /// `start` - 选定的cpu核数起始索引
 /// `nums` - 异步运行时的线程数，不包含当前线程
 /// `th_name_pre` - 线程名前缀
-pub fn runtime(start: usize, nums: usize, th_name_pre: &'static str) -> Result<(), Error> {
+pub fn runtime<F>(
+    start: usize,
+    nums: usize,
+    th_name_pre: &'static str,
+    before_f: F,
+) -> Result<tokio::runtime::Runtime, Error>
+where
+    F: Fn() + Send + Sync + 'static,
+{
     let cores = cpu_cores(start, nums)?;
-    tokio::runtime::Builder::new_multi_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(nums)
         .enable_all()
         .thread_name_fn(move || {
@@ -21,13 +29,15 @@ pub fn runtime(start: usize, nums: usize, th_name_pre: &'static str) -> Result<(
         .on_thread_start(move || {
             if let Ok(index) = get_thread_index() {
                 if !core_affinity::set_for_current(cores[index].clone()) {
-                    todo!()
+                    eprintln!("failed to core affinity");
                 }
             } else {
-                todo!()
+                eprintln!("failed to get thread index on thread start");
             }
-        });
-    Ok(())
+            before_f();
+        })
+        .build()?;
+    Ok(rt)
 }
 
 /// 从`th_name`中提取线程编号

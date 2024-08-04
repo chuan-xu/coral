@@ -10,4 +10,6 @@ pub enum Error {
     NoneThreadName,
     #[error("can not get index from thread name")]
     NoneThreadIndex,
+    #[error("failed to build async runtime")]
+    BuildErr(#[from] std::io::Error),
 }

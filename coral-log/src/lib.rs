@@ -1,3 +1,4 @@
+pub use tracing::{debug, error, info, subscriber::DefaultGuard, warn};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 pub use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{layer::SubscriberExt, Layer};
