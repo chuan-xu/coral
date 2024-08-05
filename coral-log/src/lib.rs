@@ -1,6 +1,7 @@
-pub use tracing::{debug, error, info, subscriber::DefaultGuard, warn};
-use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-pub use tracing_appender::rolling::Rotation;
+use tracing::subscriber::set_default;
+pub use tracing::{self, debug, error, info, instrument, subscriber::DefaultGuard, warn, Level};
+use tracing_appender::non_blocking::WorkerGuard;
+pub use tracing_appender::{non_blocking::NonBlocking, rolling::Rotation};
 use tracing_subscriber::{layer::SubscriberExt, Layer};
 
 mod error;
@@ -27,11 +28,7 @@ impl WriterHandler {
         }
     }
 
-    pub fn fileout(directory: &str, prefix: &str, rotation: Option<Rotation>) -> Self {
-        let rotation = match rotation {
-            Some(r) => r,
-            None => Rotation::DAILY,
-        };
+    pub fn fileout(directory: &str, prefix: &str, rotation: Rotation) -> Self {
         let appender =
             tracing_appender::rolling::RollingFileAppender::new(rotation, directory, prefix);
         let (fileout, _guard) = tracing_appender::non_blocking(appender);
@@ -46,18 +43,30 @@ impl WriterHandler {
     }
 }
 
-pub fn subscriber(
-    writer: NonBlocking,
-) -> tracing_subscriber::layer::Layered<
-    tracing::level_filters::LevelFilter,
-    tracing_subscriber::layer::Layered<
-        format::Layer<tracing_subscriber::Registry, NonBlocking>,
-        tracing_subscriber::Registry,
-    >,
-> {
-    let layer = format::Layer::new(writer);
-    let layered = tracing_subscriber::Registry::default().with(layer);
-    tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layered)
+pub fn subscriber(is_debug: bool, writer: NonBlocking) -> DefaultGuard {
+    match is_debug {
+        true => {
+            let layer = format::Layer::new(writer);
+            let layered = tracing_subscriber::Registry::default().with(layer);
+            let trace =
+                tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layered);
+            set_default(trace)
+        }
+        false => {
+            let time_fmt = tracing_subscriber::fmt::time::ChronoLocal::rfc_3339();
+            let trace = tracing_subscriber::FmtSubscriber::builder()
+                .pretty()
+                .with_timer(time_fmt)
+                .with_ansi(true)
+                .with_file(true)
+                .with_line_number(true)
+                .with_level(true)
+                .with_thread_names(true)
+                .with_writer(writer)
+                .finish();
+            set_default(trace)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -81,14 +90,14 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "manual test"]
     fn test_proto() {
-        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Some(Rotation::DAILY));
+        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Rotation::DAILY);
         let l = format::Layer::new(hand.writer);
         let l1 = tracing_subscriber::Registry::default().with(l);
         let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
         let t = f.with_subscriber(l1);
-        tracing::subscriber::set_global_default(t).unwrap();
-        // snay();
+        let _subscriber_guard = tracing::subscriber::set_default(t);
         let v = 11;
         let span = tracing::span!(Level::INFO, "my_span", val = v, "some message");
         let _guard = span.enter();
@@ -97,12 +106,12 @@ mod tests {
         drop(_guard1);
         tracing::event!(Level::ERROR, name = "luli", "in event");
         tracing::event!(Level::ERROR, name = "luli", "in event1");
-        // println!("finish");
     }
 
     #[test]
+    #[ignore = "manual test"]
     fn parse_log() {
-        let mut f = std::fs::File::open("/root/tmp/log/proto.log.2024-08-04").unwrap();
+        let mut f = std::fs::File::open("/root/tmp/log/test.log.2024-08-05").unwrap();
         let mut buf = bytes::BytesMut::with_capacity(1024).writer();
         std::io::copy(&mut f, &mut buf).unwrap();
         let b = buf.into_inner().freeze();
@@ -124,14 +133,33 @@ mod tests {
         info!(val = _val, "after sleep");
     }
 
+    #[instrument]
+    fn param(age: Option<i32>) {
+        let name = Some(String::from("hello world"));
+        info!(name = name, "hello from param");
+    }
+
     #[test]
+    #[ignore = "manual test"]
+    fn test_enum() {
+        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Rotation::DAILY);
+        let layer = format::Layer::new(hand.writer);
+        let layered = tracing_subscriber::Registry::default().with(layer);
+        let subscriber =
+            tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layered);
+        let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+        param(Some(13));
+    }
+
+    #[test]
+    #[ignore = "manual test"]
     fn async_log() {
-        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Some(Rotation::DAILY));
+        let hand = WriterHandler::fileout("/root/tmp/log", "test.log", Rotation::DAILY);
         let l = format::Layer::new(hand.writer);
         let l1 = tracing_subscriber::Registry::default().with(l);
         let f = tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL;
         let t = f.with_subscriber(l1);
-        tracing::subscriber::set_global_default(t).unwrap();
+        let _subscriber_guard = tracing::subscriber::set_default(t);
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(3)
             .enable_all()

@@ -93,8 +93,7 @@ fn bench(c: &mut Criterion) {
                 "proto.log",
             );
             let (writer, _guard) = tracing_appender::non_blocking(appender);
-            let t = coral_log::subscriber(writer);
-            let _guard = tracing::subscriber::set_default(t);
+            let _guard = coral_log::subscriber(true, writer);
             for _ in 0..1000000 {
                 callsite_4();
             }

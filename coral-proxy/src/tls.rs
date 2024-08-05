@@ -12,21 +12,18 @@ use std::{
 };
 use webpki_roots::TLS_SERVER_ROOTS;
 
-use crate::{
-    cli::Cli,
-    error::{CoralRes, Error},
-};
+use crate::{cli::Cli, error::CoralRes};
 
 /// 根证书
-fn root_ca(ca_path: &str) -> Arc<dyn ClientCertVerifier> {
+fn root_ca(ca_dir: Option<&String>) -> CoralRes<Arc<dyn ClientCertVerifier>> {
     let mut root_store = RootCertStore {
         roots: TLS_SERVER_ROOTS.iter().cloned().collect(),
     };
-    let certs_path = Path::new(ca_path).to_path_buf();
-    client_cert(certs_path, &mut root_store).unwrap();
-    WebPkiClientVerifier::builder(Arc::new(root_store))
-        .build()
-        .unwrap()
+    if let Some(dir) = ca_dir {
+        let certs_path = Path::new(dir).to_path_buf();
+        client_cert(certs_path, &mut root_store)?;
+    }
+    Ok(WebPkiClientVerifier::builder(Arc::new(root_store)).build()?)
 }
 
 /// 添加用于校验client请求的根证书
@@ -48,8 +45,7 @@ fn client_cert(ca_path: PathBuf, root_store: &mut RootCertStore) -> std::io::Res
 
 /// tls server 配置
 pub fn server_conf(cli: &Cli) -> CoralRes<Arc<ServerConfig>> {
-    let ca_dir = &cli.ca_dir.clone().ok_or(Error::MissingCa)?;
-    let client_verifier = root_ca(ca_dir);
+    let client_verifier = root_ca(cli.ca_dir.as_ref())?;
     let mut cert_file = BufReader::new(File::open(&cli.certificate)?);
     let mut key_file = BufReader::new(File::open(&cli.private_key)?);
     let cert_chain: Vec<CertificateDer<'static>> =
