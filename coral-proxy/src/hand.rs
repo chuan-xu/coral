@@ -22,10 +22,12 @@ impl PxyChan {
 
         tokio::spawn(async move {
             if let Err(e) = conn.await {
-                println!("+++++++++++++++++++++");
                 error!(error = e.to_string(), "proxy chan conn failed");
             }
-        });
+        })
+        .await
+        .unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
         let body = axum::body::Body::empty().into_data_stream();
         let req = hyper::Request::builder()
             .method("POST")

@@ -95,7 +95,7 @@ async fn tcp_accept(
     Ok(())
 }
 
-#[coral_log::instrument]
+// #[coral_log::instrument]
 async fn server(args: cli::Cli) -> CoralRes<()> {
     let conf = tls::server_conf(&args)?;
     let tls_acceptor = tokio_rustls::TlsAcceptor::from(conf);

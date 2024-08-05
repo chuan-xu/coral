@@ -45,17 +45,17 @@ impl WriterHandler {
 
 pub fn subscriber(is_debug: bool, writer: NonBlocking) -> DefaultGuard {
     match is_debug {
-        true => {
+        false => {
             let layer = format::Layer::new(writer);
             let layered = tracing_subscriber::Registry::default().with(layer);
             let trace =
                 tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layered);
             set_default(trace)
         }
-        false => {
+        true => {
             let time_fmt = tracing_subscriber::fmt::time::ChronoLocal::rfc_3339();
             let trace = tracing_subscriber::FmtSubscriber::builder()
-                .pretty()
+                .compact()
                 .with_timer(time_fmt)
                 .with_ansi(true)
                 .with_file(true)
@@ -83,6 +83,13 @@ mod tests {
         record_proto::{self},
         WriterHandler,
     };
+
+    #[test]
+    fn test_format_std() {
+        let subscriber = tracing_subscriber::FmtSubscriber::builder().finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+        info!("hello from test_format_std");
+    }
 
     #[tracing::instrument]
     fn snay() {
