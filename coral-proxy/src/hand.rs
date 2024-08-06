@@ -26,10 +26,10 @@ static PROXY_REJECT: u8 = 1;
 static PROXY_CLOSED: u8 = 2;
 
 /// 远端服务即将关闭
-static PROXY_CLOSING: u8 = 3;
+static PROXY_CLEANING: u8 = 3;
 
 /// 已经无连接
-static PROXY_SHUTDOWN: u8 = 4;
+static PROXY_CLEANED: u8 = 4;
 
 struct PxyConn {
     /// 代理数据发送的句柄
@@ -40,6 +40,9 @@ struct PxyConn {
 
     /// 连接的数量
     count: Arc<AtomicU64>,
+
+    /// 服务地址
+    addr: String,
 }
 
 impl Clone for PxyConn {
@@ -48,6 +51,7 @@ impl Clone for PxyConn {
             sender: self.sender.clone(),
             state: self.state.clone(),
             count: self.count.clone(),
+            addr: self.addr.clone(),
         }
     }
 }
@@ -74,6 +78,7 @@ impl PxyConn {
             sender,
             state,
             count: Arc::new(AtomicU64::new(0)),
+            addr: addr.to_owned(),
         };
         Ok(pxy_conn)
     }
@@ -86,10 +91,10 @@ impl PxyConn {
                 if let Err(c) = state.compare_exchange(
                     current,
                     PROXY_CLOSED,
-                    Ordering::AcqRel,
-                    Ordering::AcqRel,
+                    Ordering::SeqCst,
+                    Ordering::Acquire,
                 ) {
-                    if c == PROXY_NORMAL || c == PROXY_CLOSING {
+                    if c == PROXY_NORMAL || c == PROXY_REJECT {
                         current = c;
                         continue;
                     }
@@ -110,6 +115,26 @@ impl PxyConn {
             return Err(Error::HeartBeatFailed);
         }
         Ok(())
+    }
+
+    async fn clean_check(self) {
+        loop {
+            if self.count.load(Ordering::Acquire) == 0 {
+                if let Err(e) = self.state.compare_exchange(
+                    PROXY_CLEANING,
+                    PROXY_CLEANED,
+                    Ordering::SeqCst,
+                    Ordering::Acquire,
+                ) {
+                    error!(
+                        state = e,
+                        "failed to compare exchange PROXY_CLEANING to PROXY_CLEANED"
+                    );
+                }
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        }
     }
 }
 
@@ -132,6 +157,15 @@ impl PxyPool {
         Ok(())
     }
 
+    async fn reconn(self, addr: String) {
+        if let Ok(conn) = PxyConn::new(&addr).await {
+            let mut conns = self.inner.write().await;
+            conns.push(conn);
+        } else {
+            error!(address = addr, "failed to reconn");
+        }
+    }
+
     async fn build(addrs: &Vec<String>) -> CoralRes<Self> {
         let pool = PxyPool {
             inner: Arc::new(tokio::sync::RwLock::new(Vec::new())),
@@ -142,28 +176,46 @@ impl PxyPool {
         Ok(pool)
     }
 
-    async fn balance(&self) -> CoralRes<PxyConn> {
+    async fn balance(&self) -> CoralRes<Option<PxyConn>> {
         let conns = self.inner.read().await;
-        let conn = None;
+        let mut conn = None;
+        let mut max = 0;
         for item in conns.iter() {
             let state = item.state.load(Ordering::Acquire);
             match state {
-                1 | 2 => continue,
-                3 => {
-                    let this = item.clone();
-                    tokio::spawn(async move {
-                        loop {
-                            if this.count.load(Ordering::Acquire) == 0 {
-                                this.state.compare_exchange(PROXY_CLOSING, , , )
-                            }
-                        }
-                    });
+                0 => {
+                    let count = item.count.load(Ordering::Acquire);
+                    if count > max {
+                        max = count;
+                        conn = Some(item.clone());
+                    }
                 }
-                4 => {}
+                2 => {
+                    if let Err(e) = item.state.compare_exchange(
+                        PROXY_CLOSED,
+                        PROXY_CLEANING,
+                        Ordering::SeqCst,
+                        Ordering::Acquire,
+                    ) {
+                        error!(
+                            state = e,
+                            "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
+                        );
+                        continue;
+                    }
+                    tokio::spawn(self.clone().reconn(item.addr.clone()));
+                    tokio::spawn(item.clone().clean_check());
+                }
+                4 => {
+                    tokio::spawn(self.clone().remove());
+                }
+                _ => continue,
             }
         }
         Ok(conn)
     }
+
+    async fn remove(self) {}
 }
 
 impl PxyChan {
