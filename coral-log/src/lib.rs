@@ -118,7 +118,7 @@ mod tests {
     #[test]
     #[ignore = "manual test"]
     fn parse_log() {
-        let mut f = std::fs::File::open("/root/tmp/log/test.log.2024-08-05").unwrap();
+        let mut f = std::fs::File::open("/root/tmp/log/test.log.2024-08-06").unwrap();
         let mut buf = bytes::BytesMut::with_capacity(1024).writer();
         std::io::copy(&mut f, &mut buf).unwrap();
         let b = buf.into_inner().freeze();

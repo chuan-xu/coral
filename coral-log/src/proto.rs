@@ -1,14 +1,7 @@
-use std::sync::atomic::AtomicPtr;
-
 use chrono::format::{Fixed, Item};
 use tracing::{Level, Metadata};
 
 use crate::record_proto::{self, Fields, Meta};
-
-pub fn create_sync_fields() -> AtomicPtr<Fields> {
-    let fields = Box::leak(Box::new(Fields::default()));
-    AtomicPtr::new(fields)
-}
 
 impl record_proto::Record {
     pub(crate) fn format_metadata(&mut self, meta: &Metadata) {

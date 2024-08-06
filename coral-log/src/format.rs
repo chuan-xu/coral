@@ -1,19 +1,11 @@
-use std::{
-    any::TypeId,
-    cell::RefCell,
-    marker::PhantomData,
-    sync::atomic::{AtomicPtr, Ordering},
-};
+use std::{any::TypeId, cell::RefCell, marker::PhantomData};
 
 use bytes::BufMut;
 use prost::Message;
 use tracing::{span, Event, Subscriber};
 use tracing_subscriber::{fmt::MakeWriter, layer, registry::LookupSpan};
 
-use crate::{
-    proto::create_sync_fields,
-    record_proto::{self, Fields, Record},
-};
+use crate::record_proto::{self, Fields, Record};
 
 pub struct Layer<S, W = fn() -> std::io::Stdout> {
     writer: W,
@@ -56,20 +48,9 @@ where
     fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, ctx: layer::Context<'_, S>) {
         let span = ctx.span(id).expect("Span not found, this is a bug");
         let mut extensions = span.extensions_mut();
-
-        if extensions.get_mut::<AtomicPtr<Fields>>().is_none() {
-            let fields = create_sync_fields();
-            if let Err(_) = fields.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| unsafe {
-                if let Some(t) = v.as_mut() {
-                    attrs.record(t);
-                }
-                Some(v)
-            }) {
-                eprintln!(
-                    "[tracing-subscriber] Unable to format the following event, ignoring: {:?}",
-                    attrs
-                );
-            }
+        if extensions.get_mut::<Fields>().is_none() {
+            let mut fields = Fields::default();
+            attrs.record(&mut fields);
             extensions.insert(fields);
         }
     }
@@ -77,34 +58,13 @@ where
     fn on_record(&self, span: &span::Id, values: &span::Record<'_>, ctx: layer::Context<'_, S>) {
         let span = ctx.span(span).expect("Span not found, this is a bug");
         let mut extensions = span.extensions_mut();
-        if let Some(fields) = extensions.get_mut::<AtomicPtr<Fields>>() {
-            if let Err(_) = fields.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| unsafe {
-                if let Some(t) = v.as_mut() {
-                    values.record(t);
-                }
-                Some(v)
-            }) {
-                eprintln!(
-                    "[tracing-subscriber] Unable to format the following event, ignoring: {:?}",
-                    values
-                );
-            }
-            return;
+        if let Some(fields) = extensions.get_mut::<Fields>() {
+            values.record(fields);
+        } else {
+            let mut fields = Fields::default();
+            values.record(&mut fields);
+            extensions.insert(fields);
         }
-
-        let fields = create_sync_fields();
-        if let Err(_) = fields.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| unsafe {
-            if let Some(t) = v.as_mut() {
-                values.record(t);
-            }
-            Some(v)
-        }) {
-            eprintln!(
-                "[tracing-subscriber] Unable to format the following event, ignoring: {:?}",
-                values
-            );
-        }
-        extensions.insert(fields);
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: layer::Context<'_, S>) {
@@ -139,18 +99,9 @@ where
             let scope = spans.into_iter().flat_map(|span| span.scope().from_root());
             for span in scope{
                 let mut proto_span = record_proto::Meta::new(span.name());
-                let ext = span.extensions();
-                if let Some(fields) = ext.get::<AtomicPtr<Fields>>() {
-                    if let Err(_) = fields.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| unsafe {
-                        if let Some(t) = v.as_mut() {
-                            proto_span.fields = t.take();
-                        }
-                        Some(v)
-                    }) {
-                        eprintln!(
-                            "[tracing-subscriber] Unable to format the following event, ignoring",
-                        );
-                    }
+                let mut ext = span.extensions_mut();
+                if let Some(fields) = ext.get_mut::<Fields>() {
+                    proto_span.fields = fields.take();
                 }
                 buf.spans.push(proto_span);
             }

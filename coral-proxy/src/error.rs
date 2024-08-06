@@ -35,4 +35,7 @@ pub enum Error {
 
     #[error("hyper http inner error")]
     HttpInner(#[from] hyper::http::Error),
+
+    #[error("heartbeat failed")]
+    HeartBeatFailed,
 }
