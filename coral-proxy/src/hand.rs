@@ -1,5 +1,12 @@
-use axum::{body::BodyDataStream, extract::Request, http::uri::PathAndQuery};
-use coral_log::error;
+use axum::{
+    body::BodyDataStream,
+    extract::Request,
+    http::{uri::PathAndQuery, HeaderMap, HeaderValue},
+};
+use coral_log::{
+    error,
+    tracing::{span, Level, Span},
+};
 use hyper::client::conn::http2::{Connection, SendRequest};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use std::sync::{
@@ -10,11 +17,6 @@ use std::sync::{
 use coral_runtime::tokio;
 
 use crate::error::{CoralRes, Error};
-
-pub struct PxyChan {
-    sender: SendRequest<BodyDataStream>,
-    count: Arc<()>,
-}
 
 /// 代理连接正常
 static PROXY_NORMAL: u8 = 0;
@@ -45,6 +47,16 @@ struct PxyConn {
     addr: String,
 }
 
+struct PxyConnGuard {
+    inner: Arc<AtomicU64>,
+}
+
+impl Drop for PxyConnGuard {
+    fn drop(&mut self) {
+        self.inner.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
 impl Clone for PxyConn {
     fn clone(&self) -> Self {
         Self {
@@ -69,7 +81,17 @@ async fn handshake(addr: &str) -> CoralRes<HandshakeSocket> {
         .await?;
     Ok(socket)
 }
+
 impl PxyConn {
+    fn get_sender(&self) -> (SendRequest<BodyDataStream>, PxyConnGuard) {
+        self.count.fetch_add(1, Ordering::AcqRel);
+        let guard = PxyConnGuard {
+            inner: self.count.clone(),
+        };
+
+        (self.sender.clone(), guard)
+    }
+
     async fn new(addr: &str) -> CoralRes<PxyConn> {
         let (sender, conn) = handshake(addr).await?;
         let state = Arc::new(AtomicU8::new(0));
@@ -80,12 +102,13 @@ impl PxyConn {
             count: Arc::new(AtomicU64::new(0)),
             addr: addr.to_owned(),
         };
+        pxy_conn.heartbeat().await?;
         Ok(pxy_conn)
     }
 
     async fn keep_conn(conn: HandshakeConn, addr: String, state: Arc<AtomicU8>) {
-        if let Err(e) = conn.await {
-            error!(error = e.to_string(), addr = addr, "Proxy disconnect");
+        if let Err(err) = conn.await {
+            error!(e = err.to_string(), addr = addr, "Proxy disconnect");
             let mut current = PROXY_NORMAL;
             loop {
                 if let Err(c) = state.compare_exchange(
@@ -138,7 +161,7 @@ impl PxyConn {
     }
 }
 
-struct PxyPool {
+pub struct PxyPool {
     inner: Arc<tokio::sync::RwLock<Vec<PxyConn>>>,
 }
 
@@ -158,15 +181,18 @@ impl PxyPool {
     }
 
     async fn reconn(self, addr: String) {
-        if let Ok(conn) = PxyConn::new(&addr).await {
-            let mut conns = self.inner.write().await;
-            conns.push(conn);
-        } else {
-            error!(address = addr, "failed to reconn");
+        loop {
+            if let Ok(conn) = PxyConn::new(&addr).await {
+                let mut conns = self.inner.write().await;
+                conns.push(conn);
+            } else {
+                error!(address = addr, "failed to reconn");
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         }
     }
 
-    async fn build(addrs: &Vec<String>) -> CoralRes<Self> {
+    pub async fn build(addrs: &Vec<String>) -> CoralRes<Self> {
         let pool = PxyPool {
             inner: Arc::new(tokio::sync::RwLock::new(Vec::new())),
         };
@@ -176,16 +202,16 @@ impl PxyPool {
         Ok(pool)
     }
 
-    async fn balance(&self) -> CoralRes<Option<PxyConn>> {
+    async fn balance(&self) -> Option<PxyConn> {
         let conns = self.inner.read().await;
         let mut conn = None;
-        let mut max = 0;
+        let mut max = u64::MAX;
         for item in conns.iter() {
             let state = item.state.load(Ordering::Acquire);
             match state {
                 0 => {
                     let count = item.count.load(Ordering::Acquire);
-                    if count > max {
+                    if count < max {
                         max = count;
                         conn = Some(item.clone());
                     }
@@ -212,69 +238,67 @@ impl PxyPool {
                 _ => continue,
             }
         }
-        Ok(conn)
+        conn
     }
 
-    async fn remove(self) {}
+    async fn remove(self) {
+        let mut conns = self.inner.write().await;
+        conns.retain(|conn| conn.state.load(Ordering::Acquire) == PROXY_CLEANED);
+    }
 }
 
-impl PxyChan {
-    pub async fn new(dst: &String) -> CoralRes<PxyChan> {
-        let stream = tokio::net::TcpStream::connect(dst).await?;
-        let (mut sender, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor::new())
-            .handshake(TokioIo::new(stream))
-            .await?;
-
-        tokio::spawn(async move {
-            if let Err(e) = conn.await {
-                error!(error = e.to_string(), "proxy chan conn failed");
-            }
-        })
-        .await
-        .unwrap();
-        std::thread::sleep(std::time::Duration::from_secs(3));
-        let body = axum::body::Body::empty().into_data_stream();
-        let req = hyper::Request::builder()
-            .method("POST")
-            .uri("/heartbeat")
-            .body(body)?;
-        let res = sender.send_request(req).await?;
-        if res.status() != hyper::StatusCode::OK {
-            std::panic!("invalid server addr");
+fn record_trace_id(headers: &HeaderMap<HeaderValue>) -> CoralRes<Span> {
+    match headers.get("x-trace-id") {
+        Some(hv) => {
+            let trace_id = hv.to_str()?.to_owned();
+            Ok(span!(Level::INFO, "trace_id_h", v = trace_id))
         }
-        Ok(Self {
-            sender,
-            count: Arc::default(),
-        })
-    }
-
-    pub fn ref_count(&self) -> usize {
-        Arc::strong_count(&self.count)
-    }
-
-    pub fn get_sender(&mut self) -> &mut SendRequest<BodyDataStream> {
-        &mut self.sender
-    }
-}
-
-impl Clone for PxyChan {
-    fn clone(&self) -> Self {
-        Self {
-            sender: self.sender.clone(),
-            count: self.count.clone(),
+        None => {
+            let trace_id = uuid::Uuid::new_v4().to_string();
+            Ok(span!(Level::INFO, "trace_id_s", v = trace_id))
         }
     }
 }
 
-pub async fn proxy(req: Request) -> hyper::Response<hyper::body::Incoming> {
-    let uri = req.extensions().get::<PathAndQuery>().unwrap().clone();
-    let mut pxy_ch = req.extensions().get::<PxyChan>().unwrap().clone();
+pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
+    let span = record_trace_id(req.headers())?;
+    let _guard = span.enter();
+    let uri = req
+        .extensions()
+        .get::<PathAndQuery>()
+        .ok_or_else(|| {
+            error!("PathAndQuery is none");
+            Error::NoneOption("PathAndQuery ")
+        })?
+        .clone();
+    let pxy_pool = req
+        .extensions()
+        .get::<PxyPool>()
+        .ok_or_else(|| {
+            error!("PxyPool is none");
+            Error::NoneOption("PxyPool")
+        })?
+        .clone();
     let headers = req.headers().clone();
     let body = req.into_body().into_data_stream();
-    let mut pxy_builder = hyper::Request::builder().method("POST").uri(uri);
-    let pxy_headers = pxy_builder.headers_mut().unwrap();
-    *pxy_headers = headers;
-    let pxy_req = pxy_builder.body(body).unwrap();
-    let rsp = pxy_ch.get_sender().send_request(pxy_req).await.unwrap();
-    rsp
+    let mut trans_builder = hyper::Request::builder().method("POST").uri(uri);
+    let trans_headers = trans_builder.headers_mut().ok_or_else(|| {
+        error!("faile to get trans header");
+        Error::NoneOption("trans header")
+    })?;
+    *trans_headers = headers;
+    let trans_req = trans_builder.body(body).map_err(|err| {
+        error!(e = err.to_string(), "failed to build trans body");
+        err
+    })?;
+    let pxy_conn = pxy_pool.balance().await.ok_or_else(|| {
+        error!("pxy_conn get balance is none");
+        Error::NoneOption("pxy_conn")
+    })?;
+    let (mut sender, _guard) = pxy_conn.get_sender();
+    let rsp = sender.send_request(trans_req).await.map_err(|err| {
+        error!(e = err.to_string(), "Forwarding request failed");
+        err
+    })?;
+    Ok(rsp)
 }

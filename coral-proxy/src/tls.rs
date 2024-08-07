@@ -33,7 +33,6 @@ fn client_cert(ca_path: PathBuf, root_store: &mut RootCertStore) -> std::io::Res
         let mut buf = BufReader::new(fd);
         let cert = certs(&mut buf).map(|v| v.unwrap());
         root_store.add_parsable_certificates(cert);
-        // TODO 添加日志判断是否添加成功
     } else if ca_path.is_dir() {
         for entry in read_dir(ca_path)? {
             let entry = entry?;

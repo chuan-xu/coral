@@ -1,0 +1,16 @@
+[package]
+name = "coral-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", default-features = false, features = ["http2", "macros", "multipart", "original-uri", "tokio"] }
+clap = { version = "4.5.10", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions", "derive"] }
+coral-log = { path = "../coral-log" }
+coral-runtime = { path = "../coral-runtime" }
+hyper = { version = "1.4.0", features = ["full"] }
+hyper-util = { version = "0.1.6", features = ["full"] }
+http-body = "1.0.1"
+http-body-util = "0.1"
+thiserror = "1.0"
+tower ={ version = "0.4", features = ["full"] }

@@ -4,7 +4,7 @@ members = [
   "coral-log",
   "coral-proxy",
   "coral-runtime",
-  # "coral-server"
+  "coral-server",
 ]
 
 [profile.release]

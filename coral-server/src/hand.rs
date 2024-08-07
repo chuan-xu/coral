@@ -1,0 +1,56 @@
+use axum::{
+    extract::Request,
+    http::{HeaderMap, HeaderName, HeaderValue},
+    response::IntoResponse,
+    routing::post,
+};
+use http_body_util::BodyExt;
+use hyper::StatusCode;
+
+#[allow(unused)]
+use crate::error::CoralErr;
+
+async fn handler() -> &'static str {
+    println!("in handle");
+    "Hello, World!"
+}
+
+/// 健康检查
+async fn heartbeat() -> hyper::Response<axum::body::Body> {
+    (StatusCode::OK).into_response()
+}
+
+async fn test_hand(req: Request) -> &'static str {
+    println!("headers: {:?}", req.headers());
+    let (_, body) = req.into_parts();
+    let c = body.collect().await.unwrap().to_bytes();
+    let d = c.as_ref();
+    let f = std::str::from_utf8(d).unwrap();
+    println!("data {:?}", f);
+    "ok!"
+}
+
+struct BenchmarkRes {}
+
+impl IntoResponse for BenchmarkRes {
+    fn into_response(self) -> axum::response::Response {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static("benchmark"),
+            HeaderValue::from_static("benchmark"),
+        );
+        (headers, "benchmark").into_response()
+    }
+}
+
+async fn benchmark() -> BenchmarkRes {
+    BenchmarkRes {}
+}
+
+pub fn app() -> axum::Router {
+    axum::Router::new()
+        .route("/hello", post(handler))
+        .route("/heartbeat", post(heartbeat))
+        .route("/testhand", post(test_hand))
+        .route("/benchmark", post(benchmark))
+}

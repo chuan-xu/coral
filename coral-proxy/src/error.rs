@@ -1,3 +1,7 @@
+use axum::{
+    http::{header::ToStrError, uri::InvalidUri, StatusCode},
+    response::IntoResponse,
+};
 use coral_runtime::Error as RuntimeErr;
 use rustls::server::VerifierBuilderError;
 use thiserror::Error;
@@ -38,4 +42,16 @@ pub enum Error {
 
     #[error("heartbeat failed")]
     HeartBeatFailed,
+
+    #[error("failed to convert header to str")]
+    HeaderToStrErr(#[from] ToStrError),
+
+    #[error("invalid uri")]
+    InvalidUri(#[from] InvalidUri),
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+    }
 }
