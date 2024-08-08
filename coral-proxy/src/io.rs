@@ -3,11 +3,10 @@ use axum::{
     routing::post,
     Router,
 };
-use coral_log::error;
+use coral_log::tracing::error;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
-use std::cell::RefCell;
 use tokio_rustls::TlsAcceptor;
 use tower::Service;
 
@@ -89,71 +88,27 @@ async fn hand_stream(
     }
 }
 
-async fn tcp_accept(
-    app: &Router,
-    tls_acceptor: &TlsAcceptor,
-    tcp_listener: &tokio::net::TcpListener,
-    pxy_pool: &PxyPool,
-) -> CoralRes<()> {
-    let tower_service = app.clone();
-    let tls_accept = tls_acceptor.clone();
-    match tcp_listener.accept().await {
-        Ok((cnx, addr)) => {
-            tokio::spawn(hand_stream(
-                tls_accept,
-                cnx,
-                addr,
-                tower_service,
-                pxy_pool.clone(),
-            ));
-        }
-        Err(_) => todo!(),
-    }
-    Ok(())
-}
-
-// #[coral_log::instrument]
 async fn server(args: cli::Cli) -> CoralRes<()> {
     let conf = tls::server_conf(&args)?;
     let tls_acceptor = tokio_rustls::TlsAcceptor::from(conf);
     let bind = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
     let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
     let app = Router::new().route("/", post(hand::proxy));
-    // let mut pxy_chans: Vec<_> = futures::stream::iter(&args.addresses)
-    //     .then(|item| PxyChan::new(item))
-    //     .collect()
-    //     .await;
-    // pxy_chans.retain(|item| item.is_ok());
-
-    // TODO del
-    // let mut pxy_chan = Vec::new();
-    // for addr in &args.addresses {
-    //     match PxyChan::new(addr).await {
-    //         Ok(ch) => pxy_chan.push(ch),
-    //         Err(e) => error!(error = e.to_string(), "failed to new proxy channel"),
-    //     }
-    // }
-
     let pxy_pool = PxyPool::build(&args.addresses).await?;
 
     futures::pin_mut!(tcp_listener);
     loop {
-        if let Err(err) = tcp_accept(&app, &tls_acceptor, &tcp_listener, &pxy_pool).await {
-            error!(e = err.to_string(), "failed to tcp accept");
-        }
-    }
-}
-
-fn before_fn(debug: bool, writer: coral_log::NonBlocking) -> impl Fn() {
-    move || {
-        std::thread_local! {
-            static SUBSCRIBER_GUARD: RefCell<Option<coral_log::DefaultGuard>> = RefCell::new(None);
-        }
-        let guard = coral_log::subscriber(debug, writer.clone());
-        if let Err(e) = SUBSCRIBER_GUARD.try_with(|g| {
-            *g.borrow_mut() = Some(guard);
-        }) {
-            eprintln!("failed to set SUBSCRIBER_GUARD with {:?}", e);
+        match tcp_listener.accept().await {
+            Ok((cnx, addr)) => {
+                tokio::spawn(hand_stream(
+                    tls_acceptor.clone(),
+                    cnx,
+                    addr,
+                    app.clone(),
+                    pxy_pool.clone(),
+                ));
+            }
+            Err(err) => error!(e = err.to_string(), "failed to tcp accept"),
         }
     }
 }
@@ -167,12 +122,7 @@ pub fn run() -> CoralRes<()> {
         coral_log::WriterHandler::fileout(dir, "coral-proxy", args.get_rotation()?)
     };
     let _guard = coral_log::subscriber(args.debug, log_handler.get_writer());
-    let rt = coral_runtime::runtime(
-        args.cpui,
-        args.nums,
-        "coral-proxy",
-        before_fn(args.debug, log_handler.get_writer()),
-    )?;
+    let rt = coral_runtime::runtime(args.cpui, args.nums, "coral-proxy")?;
     rt.block_on(server(args))?;
     Ok(())
 }

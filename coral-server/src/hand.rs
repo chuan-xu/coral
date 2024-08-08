@@ -4,16 +4,13 @@ use axum::{
     response::IntoResponse,
     routing::post,
 };
+use coral_log::tracing::info;
 use http_body_util::BodyExt;
 use hyper::StatusCode;
 
 #[allow(unused)]
 use crate::error::CoralErr;
-
-async fn handler() -> &'static str {
-    println!("in handle");
-    "Hello, World!"
-}
+use crate::midw::EntryLayer;
 
 /// 健康检查
 async fn heartbeat() -> hyper::Response<axum::body::Body> {
@@ -44,13 +41,15 @@ impl IntoResponse for BenchmarkRes {
 }
 
 async fn benchmark() -> BenchmarkRes {
+    info!("benchmark");
     BenchmarkRes {}
 }
 
 pub fn app() -> axum::Router {
+    let entry_layer = EntryLayer::new();
     axum::Router::new()
-        .route("/hello", post(handler))
         .route("/heartbeat", post(heartbeat))
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))
+        .layer(entry_layer)
 }

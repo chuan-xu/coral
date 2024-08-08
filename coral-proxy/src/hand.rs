@@ -3,10 +3,7 @@ use axum::{
     extract::Request,
     http::{uri::PathAndQuery, HeaderMap, HeaderValue},
 };
-use coral_log::{
-    error,
-    tracing::{span, Level, Span},
-};
+use coral_log::tracing::{self, error, span, Level, Span};
 use hyper::client::conn::http2::{Connection, SendRequest};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use std::sync::{
@@ -27,7 +24,7 @@ static PROXY_REJECT: u8 = 1;
 /// 远端服务已经关闭
 static PROXY_CLOSED: u8 = 2;
 
-/// 远端服务即将关闭
+/// 等待所有连接句柄销毁
 static PROXY_CLEANING: u8 = 3;
 
 /// 已经无连接
@@ -95,7 +92,7 @@ impl PxyConn {
     async fn new(addr: &str) -> CoralRes<PxyConn> {
         let (sender, conn) = handshake(addr).await?;
         let state = Arc::new(AtomicU8::new(0));
-        tokio::spawn(Self::keep_conn(conn, addr.to_owned(), state.clone()));
+        tokio::spawn(Self::keep_conn(conn, addr.to_owned()));
         let pxy_conn = Self {
             sender,
             state,
@@ -106,24 +103,9 @@ impl PxyConn {
         Ok(pxy_conn)
     }
 
-    async fn keep_conn(conn: HandshakeConn, addr: String, state: Arc<AtomicU8>) {
+    async fn keep_conn(conn: HandshakeConn, addr: String) {
         if let Err(err) = conn.await {
             error!(e = err.to_string(), addr = addr, "Proxy disconnect");
-            let mut current = PROXY_NORMAL;
-            loop {
-                if let Err(c) = state.compare_exchange(
-                    current,
-                    PROXY_CLOSED,
-                    Ordering::SeqCst,
-                    Ordering::Acquire,
-                ) {
-                    if c == PROXY_NORMAL || c == PROXY_REJECT {
-                        current = c;
-                        continue;
-                    }
-                }
-                break;
-            }
         }
     }
 
@@ -140,6 +122,7 @@ impl PxyConn {
         Ok(())
     }
 
+    #[tracing::instrument(level = "info", skip_all)]
     async fn clean_check(self) {
         loop {
             if self.count.load(Ordering::Acquire) == 0 {
@@ -180,6 +163,7 @@ impl PxyPool {
         Ok(())
     }
 
+    #[tracing::instrument(level = "info", skip_all)]
     async fn reconn(self, addr: String) {
         loop {
             if let Ok(conn) = PxyConn::new(&addr).await {
@@ -202,40 +186,66 @@ impl PxyPool {
         Ok(pool)
     }
 
+    fn check_state(&self, conn: &PxyConn) -> u64 {
+        let state = conn.state.load(Ordering::Acquire);
+        let closed = conn.sender.is_closed();
+        let mut res = u64::MAX;
+        match state {
+            0 | 1 => {
+                if closed {
+                    let mut cur = PROXY_NORMAL;
+                    loop {
+                        if let Err(c) = conn.state.compare_exchange(
+                            cur,
+                            PROXY_CLOSED,
+                            Ordering::SeqCst,
+                            Ordering::Acquire,
+                        ) {
+                            if c == PROXY_NORMAL || c == PROXY_REJECT {
+                                cur = c;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+                } else if state == PROXY_NORMAL {
+                    res = conn.count.load(Ordering::Acquire);
+                }
+            }
+            2 => {
+                if let Err(e) = conn.state.compare_exchange(
+                    PROXY_CLOSED,
+                    PROXY_CLEANING,
+                    Ordering::SeqCst,
+                    Ordering::Acquire,
+                ) {
+                    error!(
+                        state = e,
+                        "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
+                    );
+                    // continue;
+                } else {
+                    tokio::spawn(self.clone().reconn(conn.addr.clone()));
+                    tokio::spawn(conn.clone().clean_check());
+                }
+            }
+            4 => {
+                tokio::spawn(self.clone().remove());
+            }
+            _ => {}
+        }
+        res
+    }
+
     async fn balance(&self) -> Option<PxyConn> {
         let conns = self.inner.read().await;
         let mut conn = None;
         let mut max = u64::MAX;
         for item in conns.iter() {
-            let state = item.state.load(Ordering::Acquire);
-            match state {
-                0 => {
-                    let count = item.count.load(Ordering::Acquire);
-                    if count < max {
-                        max = count;
-                        conn = Some(item.clone());
-                    }
-                }
-                2 => {
-                    if let Err(e) = item.state.compare_exchange(
-                        PROXY_CLOSED,
-                        PROXY_CLEANING,
-                        Ordering::SeqCst,
-                        Ordering::Acquire,
-                    ) {
-                        error!(
-                            state = e,
-                            "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
-                        );
-                        continue;
-                    }
-                    tokio::spawn(self.clone().reconn(item.addr.clone()));
-                    tokio::spawn(item.clone().clean_check());
-                }
-                4 => {
-                    tokio::spawn(self.clone().remove());
-                }
-                _ => continue,
+            let res = self.check_state(item);
+            if res < max {
+                max = res;
+                conn = Some(item.clone())
             }
         }
         conn
@@ -243,11 +253,11 @@ impl PxyPool {
 
     async fn remove(self) {
         let mut conns = self.inner.write().await;
-        conns.retain(|conn| conn.state.load(Ordering::Acquire) == PROXY_CLEANED);
+        conns.retain(|conn| conn.state.load(Ordering::Acquire) != PROXY_CLEANED);
     }
 }
 
-fn record_trace_id(headers: &HeaderMap<HeaderValue>) -> CoralRes<Span> {
+fn record_trace_id(headers: &mut HeaderMap<HeaderValue>) -> CoralRes<Span> {
     match headers.get("x-trace-id") {
         Some(hv) => {
             let trace_id = hv.to_str()?.to_owned();
@@ -255,14 +265,17 @@ fn record_trace_id(headers: &HeaderMap<HeaderValue>) -> CoralRes<Span> {
         }
         None => {
             let trace_id = uuid::Uuid::new_v4().to_string();
+            if let Ok(trace_header) = HeaderValue::from_str(&trace_id) {
+                headers.insert("x-trace-id", trace_header);
+            }
             Ok(span!(Level::INFO, "trace_id_s", v = trace_id))
         }
     }
 }
 
-pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
-    let span = record_trace_id(req.headers())?;
-    let _guard = span.enter();
+pub async fn proxy(mut req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
+    let tspan = record_trace_id(req.headers_mut())?;
+    let _guard = tspan.enter();
     let uri = req
         .extensions()
         .get::<PathAndQuery>()

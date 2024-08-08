@@ -1,4 +1,4 @@
-use tracing::subscriber::set_default;
+use tracing::subscriber::set_global_default;
 pub use tracing::{self, debug, error, info, instrument, subscriber::DefaultGuard, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 pub use tracing_appender::{non_blocking::NonBlocking, rolling::Rotation};
@@ -43,14 +43,14 @@ impl WriterHandler {
     }
 }
 
-pub fn subscriber(is_debug: bool, writer: NonBlocking) -> DefaultGuard {
+pub fn subscriber(is_debug: bool, writer: NonBlocking) {
     match is_debug {
         false => {
             let layer = format::Layer::new(writer);
             let layered = tracing_subscriber::Registry::default().with(layer);
             let trace =
                 tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layered);
-            set_default(trace)
+            set_global_default(trace).unwrap();
         }
         true => {
             let time_fmt = tracing_subscriber::fmt::time::ChronoLocal::rfc_3339();
@@ -64,7 +64,7 @@ pub fn subscriber(is_debug: bool, writer: NonBlocking) -> DefaultGuard {
                 .with_thread_names(true)
                 .with_writer(writer)
                 .finish();
-            set_default(trace)
+            set_global_default(trace).unwrap();
         }
     }
 }

@@ -8,15 +8,11 @@ use std::sync::atomic;
 /// `start` - 选定的cpu核数起始索引
 /// `nums` - 异步运行时的线程数，不包含当前线程
 /// `th_name_pre` - 线程名前缀
-pub fn runtime<F>(
+pub fn runtime(
     start: usize,
     nums: usize,
     th_name_pre: &'static str,
-    before_f: F,
-) -> Result<tokio::runtime::Runtime, Error>
-where
-    F: Fn() + Send + Sync + 'static,
-{
+) -> Result<tokio::runtime::Runtime, Error> {
     let cores = cpu_cores(start, nums)?;
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(nums)
@@ -27,7 +23,6 @@ where
             format!("{}-{}", th_name_pre, id)
         })
         .on_thread_start(move || {
-            before_f();
             if let Ok(index) = get_thread_index() {
                 if !core_affinity::set_for_current(cores[index].clone()) {
                     eprintln!("failed to core affinity");

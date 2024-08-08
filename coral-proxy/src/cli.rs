@@ -57,7 +57,6 @@ impl Cli {
     }
 
     pub(crate) fn get_rotation(&self) -> CoralRes<coral_log::Rotation> {
-        // coral_log::Rotation::MINUTELY
         let rotation = self
             .log_rotation
             .as_ref()
