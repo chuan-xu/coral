@@ -1,25 +1,27 @@
 [package]
 name = "coral-log"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 build = "build.rs"
 
 [dependencies]
-bytes = "1"
-chrono = "0.4"
-prost = "0.13"
-prost-types = "0.13"
-thiserror = "1.0"
-tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "tracing-log", "std", "chrono", "json"] }
+bytes.workspace = true
+chrono.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+thiserror.workspace= true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
 
 [build-dependencies]
-prost-build = "0.13"
+prost-build.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1.0", features = ["full"] }
-criterion = { version = "0.5", default-features = false, features = ["stable", "rayon", "plotters"] }
+tokio.workspace = true
+criterion.workspace = true
 
 [[bench]]
 name = "benchdisk"

@@ -1,33 +1,34 @@
 [package]
 name = "coral-proxy"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
-axum = { version = "0.7", default-features = false, features = ["http2", "tokio"] }
-axum-server = { version = "0.6", features = ["tls-rustls"] }
-clap = { version = "4.5", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions", "derive"] }
-coral-log = { path = "../coral-log" }
-coral-runtime = { path = "../coral-runtime" }
-futures = "0.3"
-hyper = { version = "1.4", default-features = false, features = ["client", "http2", "server"] }
-hyper-util = "0.1"
-regex = "1.10"
-rustls = "0.23"
-rustls-pemfile = "2.1"
-thiserror = "1.0"
-tokio-rustls = "0.26"
-tokio-util = { version = "0.7", default-features = false, features = ["full"] }
-tower ={ version = "0.4", features = ["full"] }
-uuid = { version = "1.10", features = ["v4"] }
-webpki-roots = "0.26"
+axum = { workspace = true, features = ["http2", "tokio"] }
+axum-server.workspace = true
+clap.workspace = true
+coral-log.workspace = true
+coral-runtime.workspace = true
+futures.workspace = true
+hyper = { workspace = true, features = ["client", "http2", "server"] }
+hyper-util = { workspace = true, features = ["default"] }
+regex.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+thiserror.workspace = true
+tokio-rustls.workspace = true
+tokio-util = { workspace = true, default-features = false, features = ["full"] }
+tower = { workspace = true, features = ["full"] }
+uuid.workspace = true 
+webpki-roots.workspace = true
 
 
 [dev-dependencies]
-criterion = { version = "0.5.1", default-features = false, features = ["stable", "rayon", "plotters"] }
-http-body-util = "0.1"
-hyper-rustls = { version = "0.27", default-features = false, features = ["http2", "tls12"] }
-# reqwest ={ version = "0.12", default-features = false, features = ["__rustls", "charset", "http2", "macos-system-configuration"] }
+criterion = { workspace = true, default-features = false, features = ["stable", "rayon", "plotters"] }
+http-body-util.workspace = true
+hyper-rustls = { workspace = true, default-features = false, features = ["http2", "tls12"] }
 
 [[bench]]
 name = "concurrence"

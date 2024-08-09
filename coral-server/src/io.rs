@@ -1,5 +1,5 @@
 use axum::extract::Request;
-use coral_log::error;
+use coral_log::tracing::error;
 use coral_runtime::tokio;
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::rt::{TokioExecutor, TokioIo};

@@ -40,9 +40,6 @@ where
 impl<S, W> layer::Layer<S> for Layer<S, W>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
-    // N: StructFields + Default + Sync + Send + 'static,
-    // E: FormatEvent<S, N> + 'static,
-    // E: StructEvent<S> + Default + 'static,
     W: for<'writer> MakeWriter<'writer> + 'static,
 {
     fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, ctx: layer::Context<'_, S>) {

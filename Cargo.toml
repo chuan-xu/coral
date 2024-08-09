@@ -7,6 +7,60 @@ members = [
   "coral-server",
 ]
 
+[workspace.package]
+authors = ["kiljiaden@163.com"]
+edition = "2021"
+repository = "https://github.com/chuan-xu/coral.git"
+rust-version = "1.80.0"
+
+[workspace.dependencies]
+axum = { version = "0.7", default-features = false, features = ["http2", "multipart", "original-uri", "tokio"] }
+axum-server = { version = "0.6", features = ["tls-rustls"] }
+bytes = "1"
+chrono = "0.4"
+clap = { version = "4.5", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions", "derive"] }
+coral-log = { path = "coral-log" }
+coral-runtime = { path = "coral-runtime" }
+core_affinity = "0.8"
+futures = "0.3"
+http-body-util = "0.1"
+http-body = "1.0.1"
+hyper = { version = "1.4.0", features = ["full"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http2", "tls12"] }
+hyper-util = { version = "0.1", features = ["full"] }
+num_cpus = "1.16"
+prost = "0.13"
+prost-types = "0.13"
+regex = "1.10"
+rustls = "0.23"
+rustls-pemfile = "2.1"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tokio-rustls = "0.26"
+tokio-util = { version = "0.7", default-features = false, features = ["full"] }
+tower ={ version = "0.4", features = ["full"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "tracing-log", "std", "chrono", "json"] }
+uuid = { version = "1.10", features = ["v4"] }
+webpki-roots = "0.26"
+
+
+# build-dependencies
+prost-build = "0.13"
+
+# dev-dependencies
+criterion = { version = "0.5", default-features = false, features = ["stable", "rayon", "plotters"] }
+
+
 [profile.release]
 opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'unwind'
+incremental = false
+overflow-checks = false
 

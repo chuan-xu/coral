@@ -1,8 +1,13 @@
+pub use tracing;
 use tracing::subscriber::set_global_default;
-pub use tracing::{self, debug, error, info, instrument, subscriber::DefaultGuard, warn, Level};
+// pub use tracing::{self, debug, error, info, instrument, subscriber::DefaultGuard, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 pub use tracing_appender::{non_blocking::NonBlocking, rolling::Rotation};
-use tracing_subscriber::{layer::SubscriberExt, Layer};
+use tracing_subscriber::{
+    fmt::{time::ChronoLocal, MakeWriter},
+    layer::SubscriberExt,
+    Layer,
+};
 
 mod error;
 mod format;
@@ -13,6 +18,9 @@ mod record_proto;
 pub mod record_proto {
     include!(concat!(".", "/record_proto.rs"));
 }
+
+#[cfg(test)]
+mod tests;
 
 pub struct WriterHandler {
     writer: NonBlocking,
@@ -43,6 +51,46 @@ impl WriterHandler {
     }
 }
 
+pub fn proto_subscriber<W>(
+    w: W,
+) -> tracing_subscriber::layer::Layered<
+    tracing::level_filters::LevelFilter,
+    tracing_subscriber::layer::Layered<
+        format::Layer<tracing_subscriber::Registry, W>,
+        tracing_subscriber::Registry,
+    >,
+>
+where
+    W: for<'writer> MakeWriter<'writer> + 'static,
+{
+    let layerd = tracing_subscriber::Registry::default().with(format::Layer::new(w));
+    tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layerd)
+}
+
+pub fn str_subscriber<W>(
+    w: W,
+    with_ansi: bool,
+) -> tracing_subscriber::FmtSubscriber<
+    tracing_subscriber::fmt::format::DefaultFields,
+    tracing_subscriber::fmt::format::Format<tracing_subscriber::fmt::format::Compact, ChronoLocal>,
+    tracing::level_filters::LevelFilter,
+    W,
+>
+where
+    W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
+{
+    tracing_subscriber::FmtSubscriber::builder()
+        .compact()
+        .with_timer(ChronoLocal::rfc_3339())
+        .with_ansi(with_ansi)
+        .with_file(true)
+        .with_line_number(true)
+        .with_level(true)
+        .with_thread_names(true)
+        .with_writer(w)
+        .finish()
+}
+
 pub fn subscriber(is_debug: bool, writer: NonBlocking) {
     match is_debug {
         false => {
@@ -70,19 +118,13 @@ pub fn subscriber(is_debug: bool, writer: NonBlocking) {
 }
 
 #[cfg(test)]
-mod tests {
+mod test1 {
 
-    use bytes::BufMut;
-    use prost::Message;
     use tracing::{info, instrument, Level};
     use tracing_appender::rolling::Rotation;
     use tracing_subscriber::{layer::SubscriberExt, Layer};
 
-    use crate::{
-        format,
-        record_proto::{self},
-        WriterHandler,
-    };
+    use crate::{format, WriterHandler};
 
     #[test]
     fn test_format_std() {
@@ -113,24 +155,6 @@ mod tests {
         drop(_guard1);
         tracing::event!(Level::ERROR, name = "luli", "in event");
         tracing::event!(Level::ERROR, name = "luli", "in event1");
-    }
-
-    #[test]
-    #[ignore = "manual test"]
-    fn parse_log() {
-        let mut f = std::fs::File::open("/root/tmp/log/test.log.2024-08-06").unwrap();
-        let mut buf = bytes::BytesMut::with_capacity(1024).writer();
-        std::io::copy(&mut f, &mut buf).unwrap();
-        let b = buf.into_inner().freeze();
-        let mut i = 0;
-        while i < b.len() {
-            let s: [u8; 8] = b[i..i + 8].try_into().unwrap();
-            let size = u64::from_be_bytes(s) as usize;
-            i += 8;
-            let r = record_proto::Record::decode(&b[i..i + size]).unwrap();
-            println!("{:?}", r);
-            i += size;
-        }
     }
 
     #[instrument]

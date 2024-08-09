@@ -3,10 +3,7 @@ use axum::{
     http::{HeaderMap, HeaderValue},
     response::Response,
 };
-use coral_log::{
-    tracing::{span, Level, Span},
-    warn,
-};
+use coral_log::tracing::{span, warn, Level, Span};
 use tower::{Layer, Service};
 
 #[derive(Clone)]

@@ -12,7 +12,7 @@ fi
 
 cd $SCRIPT_DIR;
 
-cargo build --release
+cargo build $1
 
 cp $CORAL_PROXY $BIN_DIR
 cp $CORAL_SERVER $BIN_DIR
