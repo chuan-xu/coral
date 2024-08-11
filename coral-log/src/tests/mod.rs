@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use bytes::BufMut;
+use bytes::{Buf, BufMut};
 
 mod exception;
 mod parse;
@@ -25,8 +25,12 @@ impl LogWriter {
             buf: Arc::new(Mutex::new(container)),
         }
     }
+    pub fn read_to_bytes(&self) -> Vec<u8> {
+        let container = self.buf.lock().unwrap();
+        container.get_ref().chunk().to_vec()
+    }
 
-    pub fn read(&self) -> Vec<String> {
+    pub fn read_to_string(&self) -> Vec<String> {
         let mut container = self.buf.lock().unwrap();
         let data = container.get_mut();
         let fmt = std::str::from_utf8(&data).unwrap();

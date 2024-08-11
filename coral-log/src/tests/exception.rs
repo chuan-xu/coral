@@ -1,8 +1,6 @@
 //! 在`tracing::subscriber::set_global_default(subscriber)`后`tokio::spawn`会重复记录span的问题
 //! 多线程runtime任务出现堆积，tracing的span会重复记录
 
-use bytes::BufMut;
-use std::sync::{Arc, Mutex};
 use tracing::{info, Level};
 
 /// 创建一个span，并使用spawn提交异步任务
@@ -38,7 +36,7 @@ fn repeat_in_spawn() {
         tokio::spawn(create_span(2, tx.clone()));
         rx.recv().await;
         rx.recv().await;
-        let res = writer.read();
+        let res = writer.read_to_string();
         let mut repeat = false;
         for i in res.iter() {
             // 出现两次v的赋值

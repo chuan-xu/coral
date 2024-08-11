@@ -15,7 +15,7 @@ pub enum Error {
     ProstErr(#[from] prost::DecodeError),
 }
 
-fn parse(
+pub fn parse_bytes(
     nums: usize,
     buf: bytes::buf::Writer<bytes::BytesMut>,
 ) -> Result<Vec<crate::record_proto::Record>, Error> {
@@ -35,7 +35,23 @@ fn parse(
     Ok(res)
 }
 
-fn parse_file() -> Result<(), Error> {
+pub fn parse_slice(nums: usize, buf: &[u8]) -> Result<Vec<crate::record_proto::Record>, Error> {
+    let mut res = Vec::new();
+    let mut i = 0;
+    let mut num = 0;
+    while i < buf.len() && num < nums {
+        let s: [u8; 8] = buf[i..i + 8].try_into().unwrap();
+        let size = u64::from_be_bytes(s) as usize;
+        i += 8;
+        let r = crate::record_proto::Record::decode(&buf[i..i + size])?;
+        res.push(r);
+        i += size;
+        num += 1;
+    }
+    Ok(res)
+}
+
+pub fn parse_file() -> Result<(), Error> {
     if let Ok(file_path) = env::var("LOG_FILE") {
         let nums = match env::var("LOG_NUMS") {
             Ok(v) => usize::from_str_radix(&v, 10).unwrap_or(usize::MAX),
@@ -44,7 +60,7 @@ fn parse_file() -> Result<(), Error> {
         let mut fd = std::fs::File::open(file_path)?;
         let mut buf = bytes::BytesMut::with_capacity(1024).writer();
         std::io::copy(&mut fd, &mut buf)?;
-        let res = parse(nums, buf)?;
+        let res = parse_bytes(nums, buf)?;
         println!("{:?}", res);
     }
     Ok(())
