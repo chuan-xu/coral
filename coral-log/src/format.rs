@@ -98,7 +98,9 @@ where
                 let mut proto_span = record_proto::Meta::new(span.name());
                 let mut ext = span.extensions_mut();
                 if let Some(fields) = ext.get_mut::<Fields>() {
-                    proto_span.fields = fields.take();
+                    // take之后嵌套的span无法记录原来的值
+                    // proto_span.fields = fields.take();
+                    proto_span.fields = fields.inner();
                 }
                 buf.spans.push(proto_span);
             }

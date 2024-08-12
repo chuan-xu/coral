@@ -86,6 +86,10 @@ impl Fields {
     pub fn take(&mut self) -> Vec<record_proto::Field> {
         std::mem::take(&mut self.inner)
     }
+
+    pub fn inner(&self) -> Vec<record_proto::Field> {
+        self.inner.clone()
+    }
 }
 
 impl tracing::field::Visit for Fields {
