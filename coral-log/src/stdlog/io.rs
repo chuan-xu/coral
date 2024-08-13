@@ -16,43 +16,41 @@ impl Coralog {
         cap: Option<usize>,
         mut writer: W,
     ) -> CoralRes<Self> {
-        // let mut fd = std::fs::OpenOptions::new()
-        //     .append(true)
-        //     .write(true)
-        //     .create(true)
-        //     .open(file)?;
         let cap = match cap {
             Some(c) => c,
             None => 4096,
         };
         let (tx, rx) = bounded::<Vec<u8>>(cap);
-        std::thread::spawn(move || {
-            loop {
-                match rx.recv() {
-                    Ok(chunk) => {
-                        if let Err(e) = writer.write(&chunk) {
-                            eprintln!("failed to writer log file {:?}", e);
-                        } else if let Err(e) = writer.flush() {
-                            eprintln!("failed to flush {:?}", e);
-                        }
+        std::thread::spawn(move || loop {
+            match rx.recv() {
+                Ok(chunk) => {
+                    if let Err(e) = writer.write(&chunk) {
+                        eprintln!("failed to writer log file {:?}", e);
+                    } else if let Err(e) = writer.flush() {
+                        eprintln!("failed to flush {:?}", e);
                     }
-                    Err(e) => eprint!("failed to recv from channel {:?}", e),
                 }
+                Err(e) => eprint!("failed to recv from channel {:?}", e),
             }
         });
         Ok(Self { level, tx })
     }
 }
 
+pub(super) trait Convert {
+    fn into(&mut self, record: &log::Record) -> Vec<u8>;
+}
+
 impl Log for Coralog {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        println!("======================");
         self.level >= metadata.level()
     }
 
     fn log(&self, record: &log::Record) {
-        // if self.enabled()
-        self.tx.send(vec![1, 2, 3]).unwrap();
+        println!("{:?}", record.args().to_string());
+        if self.enabled(record.metadata()) {
+            self.tx.send(vec![1, 2, 3]).unwrap();
+        }
     }
 
     fn flush(&self) {}

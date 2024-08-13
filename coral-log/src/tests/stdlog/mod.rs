@@ -24,4 +24,12 @@ fn check_coral_log() {
     log::set_boxed_logger(Box::new(h)).unwrap();
     log::set_max_level(log::LevelFilter::Info);
     info!("nihao");
+    let join = std::thread::Builder::new()
+        .name(String::from("luli"))
+        .spawn(|| {
+            let a = 11;
+            info!("hello {}", a);
+        })
+        .unwrap();
+    join.join().unwrap();
 }

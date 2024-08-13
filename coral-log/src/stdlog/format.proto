@@ -23,3 +23,12 @@ message Field {
   string val = 3;
 }
 
+message Record {
+  string timestamp = 1;
+  Level level = 2;
+  string thread_name = 3;
+  string file = 4;
+  uint32 line = 5;
+  repeated Field fields = 6;
+  string msg = 7;
+}
