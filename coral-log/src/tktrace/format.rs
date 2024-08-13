@@ -1,11 +1,19 @@
-use std::{any::TypeId, cell::RefCell, marker::PhantomData};
+use std::any::TypeId;
+use std::cell::RefCell;
+use std::marker::PhantomData;
 
 use bytes::BufMut;
 use prost::Message;
-use tracing::{span, Event, Subscriber};
-use tracing_subscriber::{fmt::MakeWriter, layer, registry::LookupSpan};
+use tracing::span;
+use tracing::Event;
+use tracing::Subscriber;
+use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::layer;
+use tracing_subscriber::registry::LookupSpan;
 
-use crate::record_proto::{self, Fields, Record};
+use super::record_proto::Fields;
+use super::record_proto::Record;
+use super::record_proto::{self};
 
 pub struct Layer<S, W = fn() -> std::io::Stdout> {
     writer: W,

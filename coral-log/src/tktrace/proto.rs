@@ -1,7 +1,11 @@
-use chrono::format::{Fixed, Item};
-use tracing::{Level, Metadata};
+use chrono::format::Fixed;
+use chrono::format::Item;
+use tracing::Level;
+use tracing::Metadata;
 
-use crate::record_proto::{self, Fields, Meta};
+use super::record_proto::Fields;
+use super::record_proto::Meta;
+use super::record_proto::{self};
 
 impl record_proto::Record {
     pub(crate) fn format_metadata(&mut self, meta: &Metadata) {
@@ -33,7 +37,7 @@ impl record_proto::Record {
             "WARN" => self.level = 3,
             "ERROR" => self.level = 4,
             _ => {
-                //TODO
+                // TODO
             }
         }
     }

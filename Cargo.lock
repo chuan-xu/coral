@@ -641,6 +641,8 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
+ "crossbeam-channel",
+ "log",
  "prost",
  "prost-build",
  "prost-types",

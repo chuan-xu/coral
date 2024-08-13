@@ -1,7 +1,10 @@
+use std::env;
+
 use bytes::BufMut;
 use prost::Message;
-use std::env;
 use thiserror::Error;
+
+use crate::tktrace::record_proto;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -18,7 +21,7 @@ pub enum Error {
 pub fn parse_bytes(
     nums: usize,
     buf: bytes::buf::Writer<bytes::BytesMut>,
-) -> Result<Vec<crate::record_proto::Record>, Error> {
+) -> Result<Vec<crate::tktrace::record_proto::Record>, Error> {
     let mut res = Vec::new();
     let data = buf.into_inner().freeze();
     let mut i = 0;
@@ -27,7 +30,7 @@ pub fn parse_bytes(
         let s: [u8; 8] = data[i..i + 8].try_into().unwrap();
         let size = u64::from_be_bytes(s) as usize;
         i += 8;
-        let r = crate::record_proto::Record::decode(&data[i..i + size])?;
+        let r = record_proto::Record::decode(&data[i..i + size])?;
         res.push(r);
         i += size;
         num += 1;
@@ -35,7 +38,7 @@ pub fn parse_bytes(
     Ok(res)
 }
 
-pub fn parse_slice(nums: usize, buf: &[u8]) -> Result<Vec<crate::record_proto::Record>, Error> {
+pub fn parse_slice(nums: usize, buf: &[u8]) -> Result<Vec<record_proto::Record>, Error> {
     let mut res = Vec::new();
     let mut i = 0;
     let mut num = 0;
@@ -43,7 +46,7 @@ pub fn parse_slice(nums: usize, buf: &[u8]) -> Result<Vec<crate::record_proto::R
         let s: [u8; 8] = buf[i..i + 8].try_into().unwrap();
         let size = u64::from_be_bytes(s) as usize;
         i += 8;
-        let r = crate::record_proto::Record::decode(&buf[i..i + size])?;
+        let r = record_proto::Record::decode(&buf[i..i + size])?;
         res.push(r);
         i += size;
         num += 1;

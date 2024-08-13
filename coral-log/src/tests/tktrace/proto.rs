@@ -3,19 +3,20 @@
 use std::cell::RefCell;
 
 use bytes::BufMut;
-use tracing::{
-    info, info_span,
-    subscriber::{set_default, DefaultGuard},
-    Instrument,
-};
-use tracing_subscriber::{layer::SubscriberExt, Layer};
+use tracing::info;
+use tracing::info_span;
+use tracing::subscriber::set_default;
+use tracing::subscriber::DefaultGuard;
+use tracing::Instrument;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Layer;
 
-use crate::format;
+use crate::tktrace::format;
 
 #[test]
 fn multi_span() {
     let writer = super::LogWriter::new();
-    let subscriber = crate::proto_subscriber(writer.clone());
+    let subscriber = crate::tktrace::proto_subscriber(writer.clone());
     tracing::subscriber::set_global_default(subscriber).unwrap();
     let sp1 = info_span!("span1");
     let _guard1 = sp1.enter();
@@ -52,7 +53,7 @@ fn async_multi_span() {
         .unwrap();
     rt.block_on(async {
         let writer = super::LogWriter::new();
-        let subscriber = crate::proto_subscriber(writer.clone());
+        let subscriber = crate::tktrace::proto_subscriber(writer.clone());
         tracing::subscriber::set_global_default(subscriber).unwrap();
         tokio::spawn(create_span(1));
         tokio::spawn(create_span(2));
@@ -79,7 +80,7 @@ async fn create_span1(diff: u8) {
 #[test]
 /// 避免重复记录span
 fn avoid_repeat_span() {
-    let writer_hander = crate::WriterHandler::fileout(
+    let writer_hander = crate::tktrace::WriterHandler::fileout(
         "/tmp",
         "coral_log.text",
         tracing_appender::rolling::Rotation::NEVER,

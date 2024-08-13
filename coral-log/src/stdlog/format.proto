@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package record_proto;
+
+enum Level {
+  ERROR = 0;
+  WARN = 1;
+  INFO = 2;
+  DEBUG = 3;
+  TRACE = 4;
+}
+
+enum Kind {
+  B = 0;
+  I = 1;
+  F = 2;
+  S = 3;
+}
+
+message Field {
+  Kind kind = 1;
+  string key = 2;
+  string val = 3;
+}
+
