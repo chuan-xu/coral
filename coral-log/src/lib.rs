@@ -1,13 +1,14 @@
 pub use tracing;
 use tracing::subscriber::set_global_default;
-// pub use tracing::{self, debug, error, info, instrument, subscriber::DefaultGuard, warn, Level};
+pub use tracing_appender::non_blocking::NonBlocking;
+// pub use tracing::{self, debug, error, info, instrument, subscriber::DefaultGuard, warn,
+// Level};
 use tracing_appender::non_blocking::WorkerGuard;
-pub use tracing_appender::{non_blocking::NonBlocking, rolling::Rotation};
-use tracing_subscriber::{
-    fmt::{time::ChronoLocal, MakeWriter},
-    layer::SubscriberExt,
-    Layer,
-};
+pub use tracing_appender::rolling::Rotation;
+use tracing_subscriber::fmt::time::ChronoLocal;
+use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Layer;
 
 mod error;
 mod format;
@@ -60,9 +61,7 @@ pub fn proto_subscriber<W>(
         tracing_subscriber::Registry,
     >,
 >
-where
-    W: for<'writer> MakeWriter<'writer> + 'static,
-{
+where W: for<'writer> MakeWriter<'writer> + 'static {
     let layerd = tracing_subscriber::Registry::default().with(format::Layer::new(w));
     tracing_subscriber::FmtSubscriber::DEFAULT_MAX_LEVEL.with_subscriber(layerd)
 }
