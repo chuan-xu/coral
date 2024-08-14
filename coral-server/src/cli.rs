@@ -1,6 +1,7 @@
 use clap::Parser;
 
-use crate::error::{CoralRes, Error};
+use crate::error::CoralRes;
+use crate::error::Error;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -39,16 +40,17 @@ impl Cli {
         Ok(args)
     }
 
-    pub(crate) fn get_rotation(&self) -> CoralRes<coral_log::Rotation> {
-        let rotation = self
-            .log_rotation
-            .as_ref()
-            .ok_or(Error::MissingLogRotation)?;
-        match rotation.as_str() {
-            "min" => Ok(coral_log::Rotation::MINUTELY),
-            "hour" => Ok(coral_log::Rotation::HOURLY),
-            "day" => Ok(coral_log::Rotation::DAILY),
-            _ => Ok(coral_log::Rotation::NEVER),
-        }
-    }
+    // TODO
+    // pub(crate) fn get_rotation(&self) -> CoralRes<coral_log::Rotation> {
+    //     let rotation = self
+    //         .log_rotation
+    //         .as_ref()
+    //         .ok_or(Error::MissingLogRotation)?;
+    //     match rotation.as_str() {
+    //         "min" => Ok(coral_log::Rotation::MINUTELY),
+    //         "hour" => Ok(coral_log::Rotation::HOURLY),
+    //         "day" => Ok(coral_log::Rotation::DAILY),
+    //         _ => Ok(coral_log::Rotation::NEVER),
+    //     }
+    // }
 }

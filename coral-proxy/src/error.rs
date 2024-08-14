@@ -1,7 +1,7 @@
-use axum::{
-    http::{header::ToStrError, uri::InvalidUri, StatusCode},
-    response::IntoResponse,
-};
+use axum::http::header::ToStrError;
+use axum::http::uri::InvalidUri;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use coral_runtime::Error as RuntimeErr;
 use rustls::server::VerifierBuilderError;
 use thiserror::Error;
@@ -48,6 +48,9 @@ pub enum Error {
 
     #[error("invalid uri")]
     InvalidUri(#[from] InvalidUri),
+
+    #[error("coral log error")]
+    CoralLogErr(#[from] coral_log::Error),
 }
 
 impl IntoResponse for Error {

@@ -1,19 +1,23 @@
-use axum::{
-    body::BodyDataStream,
-    extract::Request,
-    http::{uri::PathAndQuery, HeaderMap, HeaderValue},
-};
-use coral_log::tracing::{self, error, span, Level, Span};
-use hyper::client::conn::http2::{Connection, SendRequest};
-use hyper_util::rt::{TokioExecutor, TokioIo};
-use std::sync::{
-    atomic::{AtomicU64, AtomicU8, Ordering},
-    Arc,
-};
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
+use axum::body::BodyDataStream;
+use axum::extract::Request;
+use axum::http::uri::PathAndQuery;
+use axum::http::HeaderMap;
+use axum::http::HeaderValue;
+use coral_log::log::error;
+use coral_log::log::info;
 use coral_runtime::tokio;
+use hyper::client::conn::http2::Connection;
+use hyper::client::conn::http2::SendRequest;
+use hyper_util::rt::TokioExecutor;
+use hyper_util::rt::TokioIo;
 
-use crate::error::{CoralRes, Error};
+use crate::error::CoralRes;
+use crate::error::Error;
 
 /// 代理连接正常
 static PROXY_NORMAL: u8 = 0;
@@ -105,7 +109,8 @@ impl PxyConn {
 
     async fn keep_conn(conn: HandshakeConn, addr: String) {
         if let Err(err) = conn.await {
-            error!(e = err.to_string(), addr = addr, "Proxy disconnect");
+            let e_str = err.to_string();
+            error!(e = e_str.as_str(), addr = addr.as_str(); "Proxy disconnect");
         }
     }
 
@@ -122,7 +127,6 @@ impl PxyConn {
         Ok(())
     }
 
-    #[tracing::instrument(level = "info", skip_all)]
     async fn clean_check(self) {
         loop {
             if self.count.load(Ordering::Acquire) == 0 {
@@ -133,7 +137,7 @@ impl PxyConn {
                     Ordering::Acquire,
                 ) {
                     error!(
-                        state = e,
+                        state = e;
                         "failed to compare exchange PROXY_CLEANING to PROXY_CLEANED"
                     );
                 }
@@ -163,14 +167,13 @@ impl PxyPool {
         Ok(())
     }
 
-    #[tracing::instrument(level = "info", skip_all)]
     async fn reconn(self, addr: String) {
         loop {
             if let Ok(conn) = PxyConn::new(&addr).await {
                 let mut conns = self.inner.write().await;
                 conns.push(conn);
             } else {
-                error!(address = addr, "failed to reconn");
+                error!(address = addr.as_str(); "failed to reconn");
             }
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         }
@@ -220,7 +223,7 @@ impl PxyPool {
                     Ordering::Acquire,
                 ) {
                     error!(
-                        state = e,
+                        state = e;
                         "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
                     );
                     // continue;
@@ -257,25 +260,9 @@ impl PxyPool {
     }
 }
 
-fn record_trace_id(headers: &mut HeaderMap<HeaderValue>) -> CoralRes<Span> {
-    match headers.get("x-trace-id") {
-        Some(hv) => {
-            let trace_id = hv.to_str()?.to_owned();
-            Ok(span!(Level::INFO, "trace_id_h", v = trace_id))
-        }
-        None => {
-            let trace_id = uuid::Uuid::new_v4().to_string();
-            if let Ok(trace_header) = HeaderValue::from_str(&trace_id) {
-                headers.insert("x-trace-id", trace_header);
-            }
-            Ok(span!(Level::INFO, "trace_id_s", v = trace_id))
-        }
-    }
-}
-
 pub async fn proxy(mut req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
-    let tspan = record_trace_id(req.headers_mut())?;
-    let _guard = tspan.enter();
+    // let tspan = record_trace_id(req.headers_mut())?;
+    // let _guard = tspan.enter();
     let uri = req
         .extensions()
         .get::<PathAndQuery>()
@@ -301,7 +288,8 @@ pub async fn proxy(mut req: Request) -> CoralRes<hyper::Response<hyper::body::In
     })?;
     *trans_headers = headers;
     let trans_req = trans_builder.body(body).map_err(|err| {
-        error!(e = err.to_string(), "failed to build trans body");
+        let e_str = err.to_string();
+        error!(e = e_str.as_str(); "failed to build trans body");
         err
     })?;
     let pxy_conn = pxy_pool.balance().await.ok_or_else(|| {
@@ -310,7 +298,8 @@ pub async fn proxy(mut req: Request) -> CoralRes<hyper::Response<hyper::body::In
     })?;
     let (mut sender, _guard) = pxy_conn.get_sender();
     let rsp = sender.send_request(trans_req).await.map_err(|err| {
-        error!(e = err.to_string(), "Forwarding request failed");
+        let e_str = err.to_string();
+        error!(e = e_str.as_str(); "Forwarding request failed");
         err
     })?;
     Ok(rsp)

@@ -1,10 +1,11 @@
-use axum::{
-    extract::Request,
-    http::{HeaderMap, HeaderValue},
-    response::Response,
-};
-use coral_log::tracing::{span, warn, Level, Span};
-use tower::{Layer, Service};
+use axum::extract::Request;
+use axum::http::HeaderMap;
+use axum::http::HeaderValue;
+use axum::response::Response;
+use coral_log::log::error;
+use coral_log::log::warn;
+use tower::Layer;
+use tower::Service;
 
 #[derive(Clone)]
 pub(crate) struct EntryLayer {}
@@ -28,16 +29,16 @@ pub struct EntryWare<S> {
     inner: S,
 }
 
-fn record_trace(headers: &HeaderMap<HeaderValue>) -> Option<Span> {
-    if let Some(hv) = headers.get("x-trace-id") {
-        if let Ok(trace_id) = hv.to_str() {
-            return Some(span!(Level::INFO, "trace_id", v = trace_id.to_string()));
-        } else {
-            warn!("missing trace id");
-        }
-    }
-    None
-}
+// fn record_trace(headers: &HeaderMap<HeaderValue>) -> Option<Span> {
+//     if let Some(hv) = headers.get("x-trace-id") {
+//         if let Ok(trace_id) = hv.to_str() {
+//             return Some(span!(Level::INFO, "trace_id", v = trace_id.to_string()));
+//         } else {
+//             warn!("missing trace id");
+//         }
+//     }
+//     None
+// }
 
 impl<S> Service<Request> for EntryWare<S>
 where
@@ -60,15 +61,17 @@ where
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        let tspan = record_trace(req.headers());
+        // let tspan = record_trace(req.headers());
+        // let fut = self.inner.call(req);
+        // match tspan {
+        //     Some(t) => Box::pin(async move {
+        //         let _guard = t.enter();
+        //         fut.await
+        //     }),
+        //     // None => self.inner.call(req),
+        //     None => Box::pin(async move { fut.await }),
+        // }
         let fut = self.inner.call(req);
-        match tspan {
-            Some(t) => Box::pin(async move {
-                let _guard = t.enter();
-                fut.await
-            }),
-            // None => self.inner.call(req),
-            None => Box::pin(async move { fut.await }),
-        }
+        Box::pin(async move { fut.await })
     }
 }

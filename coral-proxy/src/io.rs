@@ -1,21 +1,21 @@
-use axum::{
-    http::{uri::PathAndQuery, Uri},
-    routing::post,
-    Router,
-};
-use coral_log::tracing::error;
+use axum::http::uri::PathAndQuery;
+use axum::http::Uri;
+use axum::routing::post;
+use axum::Router;
+use coral_log::log::error;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
-use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::rt::TokioExecutor;
+use hyper_util::rt::TokioIo;
 use tokio_rustls::TlsAcceptor;
 use tower::Service;
 
-use crate::{
-    cli,
-    error::{CoralRes, Error},
-    hand::{self, PxyPool},
-    tls,
-};
+use crate::cli;
+use crate::error::CoralRes;
+use crate::error::Error;
+use crate::hand::PxyPool;
+use crate::hand::{self};
+use crate::tls;
 
 fn parse_url(uri: &Uri) -> CoralRes<(&PathAndQuery, Uri)> {
     let path = uri.path_and_query().ok_or_else(|| {
@@ -34,10 +34,11 @@ fn parse_url(uri: &Uri) -> CoralRes<(&PathAndQuery, Uri)> {
         scheme += "://";
         scheme += authority;
         let nuri = hyper::Uri::try_from(scheme).map_err(|err| {
+            let e_str = err.to_string();
             error!(
-                e = err.to_string(),
+                e = e_str.as_str(),
                 scheme = scheme_str,
-                authority = authority,
+                authority = authority;
                 "failed to parse scheme"
             );
             err
@@ -108,20 +109,17 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
                     pxy_pool.clone(),
                 ));
             }
-            Err(err) => error!(e = err.to_string(), "failed to tcp accept"),
+            Err(err) => {
+                let e_str = err.to_string();
+                error!(e = e_str.as_str(); "failed to tcp accept");
+            }
         }
     }
 }
 
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
-    let log_handler = if args.debug {
-        coral_log::WriterHandler::stdout()
-    } else {
-        let dir = args.log_dir.as_ref().ok_or(Error::MissingLogDir)?;
-        coral_log::WriterHandler::fileout(dir, "coral-proxy", args.get_rotation()?)
-    };
-    let _guard = coral_log::subscriber(args.debug, log_handler.get_writer());
+    args.set_log()?;
     let rt = coral_runtime::runtime(args.cpui, args.nums, "coral-proxy")?;
     rt.block_on(server(args))?;
     Ok(())

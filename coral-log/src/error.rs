@@ -7,4 +7,13 @@ pub(crate) type CoralRes<T> = Result<T, Error>;
 pub enum Error {
     #[error("io error")]
     IoErr(#[from] std::io::Error),
+
+    #[error("log kv error")]
+    LogKvErr(#[from] log::kv::Error),
+
+    #[error("")]
+    LogSetErr(#[from] log::SetLoggerError),
+
+    #[error("prost error")]
+    ProstErr(#[from] prost::EncodeError),
 }

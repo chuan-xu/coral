@@ -1,3 +1,4 @@
+mod parse;
 struct CaptureWriter {
     inner: Vec<u8>,
 }
@@ -17,10 +18,11 @@ impl std::io::Write for CaptureWriter {
 use log::info;
 
 use crate::stdlog::io::Coralog;
+use crate::stdlog::record_proto;
 #[test]
 fn check_coral_log() {
     let w = CaptureWriter { inner: Vec::new() };
-    let h = Coralog::new(log::Level::Info, Some(1024), w).unwrap();
+    let h = Coralog::<record_proto::Record>::new(log::Level::Info, Some(1024), w).unwrap();
     log::set_boxed_logger(Box::new(h)).unwrap();
     log::set_max_level(log::LevelFilter::Info);
     info!("nihao");
@@ -28,7 +30,9 @@ fn check_coral_log() {
         .name(String::from("luli"))
         .spawn(|| {
             let a = 11;
-            info!("hello {}", a);
+            let v = String::from("nihao");
+            let t = v.as_str();
+            info!(key1 = t, key2 = 11; "hello {}", a);
         })
         .unwrap();
     join.join().unwrap();

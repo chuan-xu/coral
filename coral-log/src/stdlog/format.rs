@@ -1,4 +1,8 @@
+use bytes::BufMut;
+use prost::Message;
+
 use super::record_proto;
+use crate::error::CoralRes;
 
 impl From<log::Level> for record_proto::Level {
     fn from(value: log::Level) -> Self {
@@ -75,30 +79,22 @@ impl<'v> log::kv::VisitValue<'v> for record_proto::Field {
     }
 }
 
-impl<'kvs> log::kv::Visitor<'kvs> for record_proto::Field {
+impl<'kvs> log::kv::Visitor<'kvs> for record_proto::Record {
     fn visit_pair(
         &mut self,
         key: log::kv::Key<'kvs>,
         value: log::kv::Value<'kvs>,
     ) -> Result<(), log::kv::Error> {
-        self.key = key.to_string();
-        value.visit(self);
-        Ok(())
-    }
-}
-
-impl log::kv::Source for record_proto::Record {
-    fn visit<'kvs>(
-        &'kvs self,
-        visitor: &mut dyn log::kv::Visitor<'kvs>,
-    ) -> Result<(), log::kv::Error> {
-        // visitor.visit_pair(, )
+        let mut field = record_proto::Field::default();
+        field.key = key.to_string();
+        value.visit(&mut field)?;
+        self.fields.push(field);
         Ok(())
     }
 }
 
 impl super::io::Convert for record_proto::Record {
-    fn into(&mut self, record: &log::Record) -> Vec<u8> {
+    fn to_bytes(&mut self, record: &log::Record) -> CoralRes<Vec<u8>> {
         let current = std::thread::current();
         self.timestamp = chrono::Local::now().to_rfc3339();
         self.level = record_proto::Level::from(record.level()).into();
@@ -112,7 +108,44 @@ impl super::io::Convert for record_proto::Record {
             self.line = line;
         }
         self.msg = record.args().to_string();
-        // record.key_values().visit(self);
-        todo!()
+        let kvs = record.key_values();
+        kvs.visit(self)?;
+        let mut buf = bytes::BytesMut::with_capacity(1024);
+        buf.put_u32(0);
+        self.encode(&mut buf)?;
+        let len_bytes = ((buf.len() - 4) as u32).to_be_bytes();
+        buf[0] = len_bytes[0];
+        buf[1] = len_bytes[1];
+        buf[2] = len_bytes[2];
+        buf[3] = len_bytes[3];
+        Ok(buf.to_vec())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use bytes::BufMut;
+    use prost::Message;
+
+    #[test]
+    fn test_len() {
+        let mut buf = bytes::BytesMut::with_capacity(1024);
+        buf.put_u32(0);
+        let mut record = super::record_proto::Record::default();
+        record.thread_name = "thread name".to_string();
+        record.encode(&mut buf).unwrap();
+        let data = record.encode_to_vec();
+        assert_eq!(buf.len() - 4, data.len());
+        let len = ((buf.len() - 4) as u32).to_be_bytes();
+        buf[0] = len[0];
+        buf[1] = len[1];
+        buf[2] = len[2];
+        buf[3] = len[3];
+        let b = buf.freeze();
+        let len_bytes: [u8; 4] = b[..4].try_into().unwrap();
+        let dec_len = u32::from_be_bytes(len_bytes) as usize;
+        assert_eq!(dec_len, data.len());
+        let dec_record = super::record_proto::Record::decode(&b[4..dec_len + 4]).unwrap();
+        assert_eq!(dec_record.thread_name, "thread name");
     }
 }
