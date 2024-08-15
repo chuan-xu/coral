@@ -1,5 +1,4 @@
 use clap::Parser;
-use coral_log::logs;
 use coral_log::Param;
 
 use crate::error::CoralRes;
@@ -42,28 +41,8 @@ impl Cli {
                 return Err(Error::InvalidCa);
             }
         }
-        if let Some(dir) = args.param.dir.as_ref() {
-            if !std::fs::metadata(dir)?.is_dir() {
-                return Err(Error::InvalidLogDir);
-            }
-        }
+        args.param.check()?;
         Ok(args)
-    }
-
-    pub(crate) fn set_log(&self) -> CoralRes<()> {
-        if self.param.dir.is_some() && self.param.prefix.is_some() {
-            let path = std::path::Path::new(self.param.dir.as_ref().unwrap());
-            let file = path.join(self.param.prefix.as_ref().unwrap());
-            let fd = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .append(true)
-                .open(file)?;
-            logs::set_proto_logger(fd, log::Level::Info)?;
-        } else {
-            logs::set_stdout_logger()?;
-        }
-        Ok(())
     }
 
     // TODO

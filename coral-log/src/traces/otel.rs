@@ -1,9 +1,10 @@
+use fastrace::collector::Config;
 use fastrace_opentelemetry;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
 
-pub fn otel_reporter<T: IntoIterator<Item = KeyValue>>(endpoint: String, kvs: T) {
-    fastrace_opentelemetry::OpenTelemetryReporter::new(
+pub fn otel_trace<T: IntoIterator<Item = KeyValue>>(endpoint: &String, kvs: T) {
+    let reporter = fastrace_opentelemetry::OpenTelemetryReporter::new(
         opentelemetry_otlp::new_exporter()
             .tonic()
             .with_endpoint(endpoint)
@@ -19,4 +20,5 @@ pub fn otel_reporter<T: IntoIterator<Item = KeyValue>>(endpoint: String, kvs: T)
             .with_version(env!("CARGO_PKG_VERSION"))
             .build(),
     );
+    fastrace::set_reporter(reporter, Config::default());
 }

@@ -119,7 +119,6 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
 
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
-    args.set_log()?;
     let rt = coral_runtime::runtime(args.cpui, args.nums, "coral-proxy")?;
     rt.block_on(server(args))?;
     Ok(())

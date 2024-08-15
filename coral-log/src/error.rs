@@ -16,4 +16,7 @@ pub enum Error {
 
     #[error("prost error")]
     ProstErr(#[from] prost::EncodeError),
+
+    #[error("invalid log directory")]
+    InvalidLogDir,
 }

@@ -226,15 +226,14 @@ impl PxyPool {
                         state = e;
                         "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
                     );
-                    // continue;
                 } else {
                     tokio::spawn(self.clone().reconn(conn.addr.clone()));
                     tokio::spawn(conn.clone().clean_check());
                 }
             }
             4 => {
-                tokio::spawn(self.clone().remove());
             }
+                tokio::spawn(self.clone().remove());
             _ => {}
         }
         res
@@ -260,9 +259,7 @@ impl PxyPool {
     }
 }
 
-pub async fn proxy(mut req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
-    // let tspan = record_trace_id(req.headers_mut())?;
-    // let _guard = tspan.enter();
+pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
     let uri = req
         .extensions()
         .get::<PathAndQuery>()
