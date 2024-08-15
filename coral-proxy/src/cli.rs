@@ -1,4 +1,6 @@
 use clap::Parser;
+use coral_log::logs;
+use coral_log::Param;
 
 use crate::error::CoralRes;
 use crate::error::Error;
@@ -7,49 +9,40 @@ use crate::error::Error;
 #[command(version, about, long_about = None)]
 #[command(next_line_help = true)]
 pub struct Cli {
-    #[arg(long, help = "ca证书目录")]
+    #[arg(long, help = "ca directory")]
     pub ca_dir: Option<String>,
 
-    #[arg(long, help = "服务器证书")]
+    #[arg(long, help = "server certificate")]
     pub certificate: String,
 
-    #[arg(long, help = "服务器私钥")]
+    #[arg(long, help = "server private")]
     pub private_key: String,
 
-    #[arg(long, help = "服务的端口号")]
+    #[arg(long, help = "server port")]
     pub port: u16,
 
-    #[arg(long, help = "核数起始编号")]
+    #[arg(long, help = "start number of cpu cores")]
     pub cpui: usize,
 
-    #[arg(long, help = "runtime线程数")]
+    #[arg(long, help = "number of runtime")]
     pub nums: usize,
 
-    #[arg(long, help = "多个server服务地址, 例如192.168.1.3:9001")]
+    #[arg(long, help = "multiple backend address, exp 192.168.1.3:9001")]
     pub addresses: Vec<String>,
 
-    #[arg(long, help = "日志文件保持路径")]
-    pub log_dir: Option<String>,
-
-    #[arg(long, help = "日志分割周期")]
-    pub log_rotation: Option<String>,
-
-    #[arg(long, help = "是否以debug模式启动")]
-    pub debug: bool,
+    #[command(flatten)]
+    param: Param,
 }
 
 impl Cli {
     pub(crate) fn init() -> CoralRes<Self> {
         let args = Cli::parse();
-        if !args.debug && args.log_dir.is_none() {
-            return Err(Error::MissingLogDir);
-        }
         if let Some(dir) = args.ca_dir.as_ref() {
             if !std::fs::metadata(dir)?.is_dir() {
                 return Err(Error::InvalidCa);
             }
         }
-        if let Some(dir) = args.log_dir.as_ref() {
+        if let Some(dir) = args.param.dir.as_ref() {
             if !std::fs::metadata(dir)?.is_dir() {
                 return Err(Error::InvalidLogDir);
             }
@@ -58,47 +51,32 @@ impl Cli {
     }
 
     pub(crate) fn set_log(&self) -> CoralRes<()> {
-        match self.debug {
-            false => {
-                let path = std::path::Path::new(self.log_dir.as_ref().unwrap());
-                let fd = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .write(true)
-                    .open(path.join("coral-proxy.log"))?;
-                let coral = coral_log::Coralog::<coral_log::Record>::new(
-                    coral_log::log::Level::Info,
-                    None,
-                    fd,
-                )?;
-                coral_log::set_logger(coral)?;
-                coral_log::log::set_max_level(coral_log::log::LevelFilter::Info);
-            }
-            true => {
-                let w = std::io::stdout();
-                let coral = coral_log::Coralog::<coral_log::Stdout>::new(
-                    coral_log::log::Level::Trace,
-                    None,
-                    w,
-                )?;
-                coral_log::set_logger(coral)?;
-                coral_log::log::set_max_level(coral_log::log::LevelFilter::Trace);
-            }
-        };
+        if self.param.dir.is_some() && self.param.prefix.is_some() {
+            let path = std::path::Path::new(self.param.dir.as_ref().unwrap());
+            let file = path.join(self.param.prefix.as_ref().unwrap());
+            let fd = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(true)
+                .open(file)?;
+            logs::set_proto_logger(fd, log::Level::Info)?;
+        } else {
+            logs::set_stdout_logger()?;
+        }
         Ok(())
     }
 
     // TODO
-    // pub(crate) fn get_rotation(&self) -> CoralRes<coral_log::Rotation> {
+    // pub(crate) fn get_rotation(&self) -> CoralRes<logs::Rotation> {
     //     let rotation = self
     //         .log_rotation
     //         .as_ref()
     //         .ok_or(Error::MissingLogRotation)?;
     //     match rotation.as_str() {
-    //         "min" => Ok(coral_log::Rotation::MINUTELY),
-    //         "hour" => Ok(coral_log::Rotation::HOURLY),
-    //         "day" => Ok(coral_log::Rotation::DAILY),
-    //         _ => Ok(coral_log::Rotation::NEVER),
+    //         "min" => Ok(logs::Rotation::MINUTELY),
+    //         "hour" => Ok(logs::Rotation::HOURLY),
+    //         "day" => Ok(logs::Rotation::DAILY),
+    //         _ => Ok(logs::Rotation::NEVER),
     //     }
     // }
 }

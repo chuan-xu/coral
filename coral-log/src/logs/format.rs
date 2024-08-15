@@ -1,10 +1,10 @@
 use bytes::BufMut;
 use prost::Message;
 
-use super::record_proto;
+use super::logs_proto;
 use crate::error::CoralRes;
 
-impl From<log::Level> for record_proto::Level {
+impl From<log::Level> for logs_proto::Level {
     fn from(value: log::Level) -> Self {
         match value {
             log::Level::Error => Self::Error,
@@ -16,46 +16,46 @@ impl From<log::Level> for record_proto::Level {
     }
 }
 
-impl<'v> log::kv::VisitValue<'v> for record_proto::Field {
+impl<'v> log::kv::VisitValue<'v> for logs_proto::Field {
     fn visit_null(&mut self) -> Result<(), log::kv::Error> {
         self.val = "None".to_string();
-        self.kind = record_proto::Kind::S.into();
+        self.kind = logs_proto::Kind::S.into();
         Ok(())
     }
 
     fn visit_u64(&mut self, value: u64) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::I.into();
+        self.kind = logs_proto::Kind::I.into();
         Ok(())
     }
 
     fn visit_i64(&mut self, value: i64) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::I.into();
+        self.kind = logs_proto::Kind::I.into();
         Ok(())
     }
 
     fn visit_u128(&mut self, value: u128) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::I.into();
+        self.kind = logs_proto::Kind::I.into();
         Ok(())
     }
 
     fn visit_i128(&mut self, value: i128) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::I.into();
+        self.kind = logs_proto::Kind::I.into();
         Ok(())
     }
 
     fn visit_f64(&mut self, value: f64) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::F.into();
+        self.kind = logs_proto::Kind::F.into();
         Ok(())
     }
 
     fn visit_bool(&mut self, value: bool) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::B.into();
+        self.kind = logs_proto::Kind::B.into();
         Ok(())
     }
 
@@ -74,18 +74,18 @@ impl<'v> log::kv::VisitValue<'v> for record_proto::Field {
 
     fn visit_any(&mut self, value: log::kv::Value) -> Result<(), log::kv::Error> {
         self.val = value.to_string();
-        self.kind = record_proto::Kind::S.into();
+        self.kind = logs_proto::Kind::S.into();
         Ok(())
     }
 }
 
-impl<'kvs> log::kv::Visitor<'kvs> for record_proto::Record {
+impl<'kvs> log::kv::Visitor<'kvs> for logs_proto::Record {
     fn visit_pair(
         &mut self,
         key: log::kv::Key<'kvs>,
         value: log::kv::Value<'kvs>,
     ) -> Result<(), log::kv::Error> {
-        let mut field = record_proto::Field::default();
+        let mut field = logs_proto::Field::default();
         field.key = key.to_string();
         value.visit(&mut field)?;
         self.fields.push(field);
@@ -93,11 +93,11 @@ impl<'kvs> log::kv::Visitor<'kvs> for record_proto::Record {
     }
 }
 
-impl super::io::Convert for record_proto::Record {
+impl super::logger::Convert for logs_proto::Record {
     fn to_bytes(&mut self, record: &log::Record) -> CoralRes<Vec<u8>> {
         let current = std::thread::current();
         self.timestamp = chrono::Local::now().to_rfc3339();
-        self.level = record_proto::Level::from(record.level()).into();
+        self.level = logs_proto::Level::from(record.level()).into();
         if let Some(name) = current.name() {
             self.thread_name = name.to_owned();
         }
@@ -131,7 +131,7 @@ mod test {
     fn test_len() {
         let mut buf = bytes::BytesMut::with_capacity(1024);
         buf.put_u32(0);
-        let mut record = super::record_proto::Record::default();
+        let mut record = super::logs_proto::Record::default();
         record.thread_name = "thread name".to_string();
         record.encode(&mut buf).unwrap();
         let data = record.encode_to_vec();
@@ -145,7 +145,7 @@ mod test {
         let len_bytes: [u8; 4] = b[..4].try_into().unwrap();
         let dec_len = u32::from_be_bytes(len_bytes) as usize;
         assert_eq!(dec_len, data.len());
-        let dec_record = super::record_proto::Record::decode(&b[4..dec_len + 4]).unwrap();
+        let dec_record = super::logs_proto::Record::decode(&b[4..dec_len + 4]).unwrap();
         assert_eq!(dec_record.thread_name, "thread name");
     }
 }

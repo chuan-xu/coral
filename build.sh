@@ -1,5 +1,11 @@
 #!/bin/bash
 
+PROFILE="release"
+
+if [ -z "$1" ]; then
+  PROFILE="debug"
+fi
+
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 BIN_DIR="$SCRIPT_DIR/bin"
 TARGET_DIR="$SCRIPT_DIR/target/release"

@@ -7,13 +7,13 @@ use log::Log;
 
 use crate::error::CoralRes;
 
-pub struct Coralog<C> {
+pub struct Logger<C> {
     level: Level,
     tx: Sender<Vec<u8>>,
     _pd: PhantomData<C>,
 }
 
-impl<C> Coralog<C> {
+impl<C> Logger<C> {
     pub fn new<W: std::io::Write + Send + 'static>(
         level: Level,
         cap: Option<usize>,
@@ -62,7 +62,7 @@ impl Convert for Stdout {
     }
 }
 
-impl<C> Log for Coralog<C>
+impl<C> Log for Logger<C>
 where C: Convert + Default + Send + Sync
 {
     fn enabled(&self, metadata: &log::Metadata) -> bool {

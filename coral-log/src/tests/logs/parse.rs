@@ -19,7 +19,7 @@ pub enum Error {
 pub fn parse_bytes(
     nums: usize,
     buf: bytes::buf::Writer<bytes::BytesMut>,
-) -> Result<Vec<super::record_proto::Record>, Error> {
+) -> Result<Vec<super::logs_proto::Record>, Error> {
     let mut res = Vec::new();
     let data = buf.into_inner().freeze();
     let mut i = 0;
@@ -28,7 +28,7 @@ pub fn parse_bytes(
         let s: [u8; 4] = data[i..i + 4].try_into().unwrap();
         let size = u32::from_be_bytes(s) as usize;
         i += 4;
-        let r = super::record_proto::Record::decode(&data[i..i + size])?;
+        let r = super::logs_proto::Record::decode(&data[i..i + size])?;
         res.push(r);
         i += size;
         num += 1;

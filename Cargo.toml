@@ -23,12 +23,14 @@ coral-log = { path = "coral-log" }
 coral-runtime = { path = "coral-runtime" }
 core_affinity = "0.8"
 crossbeam-channel = "0.5"
+fastrace = { version = "0.7", features = ["enable"] }
 futures = "0.3"
 http-body-util = "0.1"
 http-body = "1.0.1"
 hyper = { version = "1.4.0", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["full"] }
+log = { version = "0.4", features = ["std","kv", "kv_unstable"] }
 num_cpus = "1.16"
 prost = "0.13"
 prost-types = "0.13"

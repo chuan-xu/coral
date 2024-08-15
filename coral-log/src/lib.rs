@@ -1,16 +1,10 @@
-pub use error::Error;
-pub use log;
-pub use stdlog::io::Coralog;
-pub use stdlog::io::Stdout;
-pub use stdlog::record_proto::Record;
-pub use stdlog::set_logger;
+pub mod error;
+pub mod logs;
+pub mod metrics;
+pub mod traces;
 
-mod error;
-#[cfg(feature = "stdlog")]
-mod stdlog;
-
-#[cfg(feature = "tktrace")]
-mod tktrace;
+pub use cli::Param;
+mod cli;
 
 #[cfg(test)]
 mod tests;

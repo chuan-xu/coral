@@ -2,8 +2,8 @@ use axum::extract::Request;
 use axum::http::HeaderMap;
 use axum::http::HeaderValue;
 use axum::response::Response;
-use coral_log::log::error;
-use coral_log::log::warn;
+use log::error;
+use log::warn;
 use tower::Layer;
 use tower::Service;
 

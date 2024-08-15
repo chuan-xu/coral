@@ -8,13 +8,13 @@ use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
 use axum::http::HeaderMap;
 use axum::http::HeaderValue;
-use coral_log::log::error;
-use coral_log::log::info;
 use coral_runtime::tokio;
 use hyper::client::conn::http2::Connection;
 use hyper::client::conn::http2::SendRequest;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
+use log::error;
+use log::info;
 
 use crate::error::CoralRes;
 use crate::error::Error;

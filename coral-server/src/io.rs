@@ -1,10 +1,10 @@
 use axum::extract::Request;
-use coral_log::log::error;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
+use log::error;
 use tower::Service;
 
 use crate::cli;

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use axum::http::header::ToStrError;
 use axum::http::uri::InvalidUri;
 use axum::http::StatusCode;
@@ -50,7 +51,7 @@ pub enum Error {
     InvalidUri(#[from] InvalidUri),
 
     #[error("coral log error")]
-    CoralLogErr(#[from] coral_log::Error),
+    CoralLogErr(#[from] coral_log::error::Error),
 }
 
 impl IntoResponse for Error {

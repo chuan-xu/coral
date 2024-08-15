@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package record_proto;
+package logs_proto;
 
 enum Level {
   ERROR = 0;

@@ -2,11 +2,11 @@ use axum::http::uri::PathAndQuery;
 use axum::http::Uri;
 use axum::routing::post;
 use axum::Router;
-use coral_log::log::error;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
+use log::error;
 use tokio_rustls::TlsAcceptor;
 use tower::Service;
 

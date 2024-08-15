@@ -14,5 +14,6 @@ hyper = { workspace = true, features = ["full"] }
 hyper-util = { workspace = true, features = ["full"] }
 http-body.workspace = true
 http-body-util.workspace = true
+log = { workspace = true }
 thiserror.workspace = true
 tower = { workspace = true, features = ["full"] }

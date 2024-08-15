@@ -17,12 +17,12 @@ impl std::io::Write for CaptureWriter {
 
 use log::info;
 
-use crate::stdlog::io::Coralog;
-use crate::stdlog::record_proto;
+use crate::logs::logger::Logger;
+use crate::logs::logs_proto;
 #[test]
 fn check_coral_log() {
     let w = CaptureWriter { inner: Vec::new() };
-    let h = Coralog::<record_proto::Record>::new(log::Level::Info, Some(1024), w).unwrap();
+    let h = Logger::<logs_proto::Record>::new(log::Level::Info, Some(1024), w).unwrap();
     log::set_boxed_logger(Box::new(h)).unwrap();
     log::set_max_level(log::LevelFilter::Info);
     info!("nihao");

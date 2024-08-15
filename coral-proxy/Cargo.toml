@@ -14,6 +14,7 @@ coral-runtime.workspace = true
 futures.workspace = true
 hyper = { workspace = true, features = ["client", "http2", "server"] }
 hyper-util = { workspace = true, features = ["default"] }
+log = { workspace = true }
 regex.workspace = true
 rustls.workspace = true
 rustls-pemfile.workspace = true

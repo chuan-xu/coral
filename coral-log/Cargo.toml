@@ -9,19 +9,17 @@ build = "build.rs"
 [dependencies]
 bytes.workspace = true
 chrono.workspace = true
+clap.workspace = true
 crossbeam-channel.workspace = true
+fastrace = { workspace = true, features = ["enable"] }
+fastrace-opentelemetry = "0.7"
+opentelemetry = "0.24"
+opentelemetry-otlp = "0.17"
+opentelemetry_sdk = "0.24"
 prost.workspace = true
 prost-types.workspace = true
 thiserror.workspace= true
-log = { version = "0.4", features = ["std","kv"], optional = true }
-tracing = { version = "0.1", optional = true }
-tracing-appender = { version = "0.2", optional = true }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "tracing-log", "std", "chrono", "json"], optional = true }
-
-[features]
-default = ["stdlog"]
-tktrace = ["tracing", "tracing-appender", "tracing-subscriber"]
-stdlog = ["log"]
+log = { workspace = true, features = ["std","kv", "kv_unstable"] }
 
 [build-dependencies]
 prost-build.workspace = true

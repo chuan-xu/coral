@@ -4,9 +4,9 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::response::IntoResponse;
 use axum::routing::post;
-use coral_log::log::info;
 use http_body_util::BodyExt;
 use hyper::StatusCode;
+use log::info;
 
 #[allow(unused)]
 use crate::error::CoralErr;
