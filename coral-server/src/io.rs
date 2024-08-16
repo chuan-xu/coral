@@ -12,6 +12,7 @@ use crate::error::CoralRes;
 use crate::hand;
 
 async fn server(args: cli::Cli) -> CoralRes<()> {
+    args.log_param.set_traces();
     let app = hand::app();
     let addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
     let listen = tokio::net::TcpListener::bind(addr).await?;

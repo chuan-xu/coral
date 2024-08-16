@@ -2,6 +2,7 @@
 use axum::extract::Request;
 use axum::http::HeaderValue;
 use fastrace::prelude::*;
+use log::debug;
 use tower::Layer;
 use tower::Service;
 
@@ -30,6 +31,9 @@ where S: Service<Request>
     }
 
     fn call(&mut self, mut req: Request) -> Self::Future {
+        if req.uri().path() == "/heartbeat" {
+            return self.inner.call(req);
+        }
         let header = req.headers_mut();
         let res = match header.get(HTTP_HEADER_TRACE_ID) {
             Some(val) => val
@@ -40,10 +44,11 @@ where S: Service<Request>
                     log::error!(e = e_str.as_str(); "failed to convert trace header value to str");
                 }),
             None => {
-                let trace_id = uuid::Uuid::new_v4();
-                HeaderValue::from_bytes(trace_id.as_bytes()).map(|v| {
+                let trace_id = uuid::Uuid::new_v4().to_string();
+                // let trace_str = trace_id.to_string();
+                HeaderValue::from_str(trace_id.as_str()).map(|v| {
                     header.insert(HTTP_HEADER_TRACE_ID, v);
-                    TraceId::from(CoralTraceId::from(trace_id))
+                    TraceId::from(CoralTraceId::from(trace_id.as_str()))
                 }).map_err(|err| {
                         let e_str = err.to_string();
                         log::error!(e = e_str.as_str(); "failed to convert uuid bytes to header value");
@@ -74,12 +79,6 @@ impl<S> Layer<S> for TraceLayer {
 }
 
 struct CoralTraceId(u128);
-
-impl std::convert::From<uuid::Uuid> for CoralTraceId {
-    fn from(value: uuid::Uuid) -> Self {
-        Self(u128::from_be_bytes(*value.as_bytes()))
-    }
-}
 
 impl std::convert::From<CoralTraceId> for TraceId {
     fn from(value: CoralTraceId) -> Self {

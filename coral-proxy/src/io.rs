@@ -7,6 +7,7 @@ use hyper::body::Incoming;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
+use log::info;
 use tokio_rustls::TlsAcceptor;
 use tower::Service;
 
@@ -70,6 +71,7 @@ async fn hand_stream(
     tower_service: Router,
     pxy_pool: PxyPool,
 ) {
+    info!("new connection: {}", addr);
     match tls_accept.accept(cnx).await {
         Ok(stream) => {
             let stream = TokioIo::new(stream);
@@ -80,16 +82,17 @@ async fn hand_stream(
                 .serve_connection_with_upgrades(stream, hyper_service)
                 .await;
             if let Err(err) = ret {
-                println!("error serving connection from {}: {}", addr, err);
+                error!("error serving connection from {}: {}", addr, err);
             }
         }
-        Err(_) => {
-            // TODO
+        Err(e) => {
+            error!("tls accept error {}", e);
         }
     }
 }
 
 async fn server(args: cli::Cli) -> CoralRes<()> {
+    args.log_param.set_traces();
     let conf = tls::server_conf(&args)?;
     let tls_acceptor = tokio_rustls::TlsAcceptor::from(conf);
     let bind = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
@@ -122,6 +125,9 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
     let rt = coral_runtime::runtime(&args.runtime_param, "coral-proxy")?;
-    rt.block_on(server(args))?;
+    if let Err(err) = rt.block_on(server(args)) {
+        let e_str = err.to_string();
+        error!(e = e_str.as_str(); "block on server error");
+    }
     Ok(())
 }

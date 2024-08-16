@@ -31,7 +31,7 @@ impl LogParam {
             }
         }
         self.set_log()?;
-        self.set_traces();
+        // self.set_traces();
         Ok(())
     }
 
@@ -51,7 +51,7 @@ impl LogParam {
         Ok(())
     }
 
-    fn set_traces(&self) {
+    pub fn set_traces(&self) {
         if let Some(endpoint) = self.otel_endpoint.as_ref() {
             super::traces::otel_trace(endpoint, self.get_otel_kvs())
         }

@@ -12,6 +12,8 @@ use hyper::client::conn::http2::SendRequest;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
+use log::info;
+use log::trace;
 
 use crate::error::CoralRes;
 use crate::error::Error;

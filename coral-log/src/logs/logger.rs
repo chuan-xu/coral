@@ -57,7 +57,12 @@ impl Convert for Stdout {
     fn to_bytes(&mut self, record: &log::Record) -> CoralRes<Vec<u8>> {
         let current = std::thread::current();
         let time = chrono::Local::now().to_rfc3339();
-        let res = format!("{}: [{}]: {:?}", time, current.name().unwrap_or(""), record);
+        let res = format!(
+            "====>{}: [{}]: {:?}",
+            time,
+            current.name().unwrap_or(""),
+            record
+        );
         Ok(res.as_bytes().to_vec())
     }
 }
@@ -66,7 +71,7 @@ impl<C> Log for Logger<C>
 where C: Convert + Default + Send + Sync
 {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        self.level >= metadata.level()
+        metadata.target().starts_with("coral") && self.level >= metadata.level()
     }
 
     fn log(&self, record: &log::Record) {

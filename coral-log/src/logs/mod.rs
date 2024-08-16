@@ -26,8 +26,8 @@ pub fn set_proto_logger(f: std::fs::File, level: log::Level) -> CoralRes<()> {
 
 pub fn set_stdout_logger() -> CoralRes<()> {
     let global_log =
-        logger::Logger::<logger::Stdout>::new(log::Level::Trace, None, std::io::stdout())?;
+        logger::Logger::<logger::Stdout>::new(log::Level::Debug, None, std::io::stdout())?;
     log::set_boxed_logger(Box::new(global_log))?;
-    log::set_max_level(log::LevelFilter::Trace);
+    log::set_max_level(log::LevelFilter::Debug);
     Ok(())
 }
