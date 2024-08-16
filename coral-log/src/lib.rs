@@ -3,7 +3,7 @@ pub mod logs;
 pub mod metrics;
 pub mod traces;
 
-pub use cli::Param;
+pub use cli::LogParam;
 mod cli;
 
 #[cfg(test)]

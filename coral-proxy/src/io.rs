@@ -94,7 +94,9 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
     let tls_acceptor = tokio_rustls::TlsAcceptor::from(conf);
     let bind = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
     let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
-    let app = Router::new().route("/", post(hand::proxy));
+    let app = Router::new()
+        .route("/", post(hand::proxy))
+        .layer(coral_util::tow::TraceLayer::default());
     let pxy_pool = PxyPool::build(&args.addresses).await?;
 
     futures::pin_mut!(tcp_listener);
@@ -119,7 +121,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
 
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
-    let rt = coral_runtime::runtime(args.cpui, args.nums, "coral-proxy")?;
+    let rt = coral_runtime::runtime(&args.runtime_param, "coral-proxy")?;
     rt.block_on(server(args))?;
     Ok(())
 }

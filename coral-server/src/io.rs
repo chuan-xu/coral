@@ -9,7 +9,6 @@ use tower::Service;
 
 use crate::cli;
 use crate::error::CoralRes;
-use crate::error::Error;
 use crate::hand;
 
 async fn server(args: cli::Cli) -> CoralRes<()> {
@@ -39,15 +38,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
 
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
-
-    // let log_handler = if args.debug {
-    //     coral_log::WriterHandler::stdout()
-    // } else {
-    //     let dir = args.log_dir.as_ref().ok_or(Error::MissingLogDir)?;
-    //     coral_log::WriterHandler::fileout(dir, "coral-proxy", args.get_rotation()?)
-    // };
-    // let _guard = coral_log::subscriber(args.debug, log_handler.get_writer());
-    let rt = coral_runtime::runtime(args.cpui, args.nums, "coral-server")?;
+    let rt = coral_runtime::runtime(&args.runtime_param, "coral-server")?;
     if let Err(err) = rt.block_on(server(args)) {
         let e_str = err.to_string();
         error!(e = e_str.as_str(); "block on server error");

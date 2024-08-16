@@ -1,42 +1,25 @@
 use clap::Parser;
 
 use crate::error::CoralRes;
-use crate::error::Error;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-#[command(next_line_help = true)]
 pub struct Cli {
-    #[arg(long, help = "服务的端口号")]
+    #[arg(long, help = "server port")]
     pub port: u16,
 
-    #[arg(long, help = "核数起始编号")]
-    pub cpui: usize,
+    #[command(flatten)]
+    pub log_param: coral_log::LogParam,
 
-    #[arg(long, help = "runtime线程数")]
-    pub nums: usize,
-
-    #[arg(long, help = "日志文件保持路径")]
-    pub log_dir: Option<String>,
-
-    #[arg(long, help = "日志分割周期")]
-    pub log_rotation: Option<String>,
-
-    #[arg(long, help = "是否以debug模式启动")]
-    pub debug: bool,
+    #[command(flatten)]
+    pub runtime_param: coral_runtime::RuntimeParam,
 }
 
 impl Cli {
     pub(crate) fn init() -> CoralRes<Self> {
         let args = Cli::parse();
-        if !args.debug && args.log_dir.is_none() {
-            return Err(Error::MissingLogDir);
-        }
-        if let Some(dir) = args.log_dir.as_ref() {
-            if !std::fs::metadata(dir)?.is_dir() {
-                return Err(Error::InvalidLogDir);
-            }
-        }
+        args.log_param.check()?;
+        args.runtime_param.check()?;
         Ok(args)
     }
 

@@ -8,9 +8,12 @@ fi
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 BIN_DIR="$SCRIPT_DIR/bin"
-TARGET_DIR="$SCRIPT_DIR/target/release"
+TARGET_DIR="$SCRIPT_DIR/target/$PROFILE"
 CORAL_PROXY="$TARGET_DIR/coral-proxy"
 CORAL_SERVER="$TARGET_DIR/coral-server"
+
+echo $CORAL_PROXY
+echo $CORAL_SERVER
 
 if [ ! -d "$BIN_DIR" ]; then
   mkdir -p $BIN_DIR

@@ -1,15 +1,12 @@
-use clap::Parser;
+use clap::Args;
 use opentelemetry::KeyValue;
 
-use crate::{
-    error::{CoralRes, Error},
-    logs,
-};
+use crate::error::CoralRes;
+use crate::error::Error;
+use crate::logs;
 
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-#[command(next_line_help = true)]
-pub struct Param {
+#[derive(Args, Debug)]
+pub struct LogParam {
     #[arg(long, help = "directory for storing logs")]
     pub dir: Option<String>,
 
@@ -26,7 +23,7 @@ pub struct Param {
     pub otel_kvs: Vec<String>,
 }
 
-impl Param {
+impl LogParam {
     pub fn check(&self) -> CoralRes<()> {
         if let Some(dir) = self.dir.as_ref() {
             if !std::fs::metadata(dir)?.is_dir() {

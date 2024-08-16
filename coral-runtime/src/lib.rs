@@ -1,21 +1,24 @@
 mod error;
 
-pub use tokio;
-
-pub use error::Error;
+pub mod cli;
 use std::sync::atomic;
+
+pub use cli::RuntimeParam;
+pub use error::Error;
+pub use tokio;
 
 /// `start` - 选定的cpu核数起始索引
 /// `nums` - 异步运行时的线程数，不包含当前线程
 /// `th_name_pre` - 线程名前缀
 pub fn runtime(
-    start: usize,
-    nums: usize,
+    // start: usize,
+    // nums: usize,
+    param: &RuntimeParam,
     th_name_pre: &'static str,
 ) -> Result<tokio::runtime::Runtime, Error> {
-    let cores = cpu_cores(start, nums)?;
+    let cores = cpu_cores(param.cpui, param.nums)?;
     let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(nums)
+        .worker_threads(param.nums)
         .enable_all()
         .thread_name_fn(move || {
             static ATOMIC_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);

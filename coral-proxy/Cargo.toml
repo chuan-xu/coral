@@ -1,6 +1,7 @@
 [package]
 name = "coral-proxy"
 version = "0.1.0"
+authors.workspace = true
 edition.workspace = true
 repository.workspace = true
 rust-version.workspace = true
@@ -11,6 +12,7 @@ axum-server.workspace = true
 clap.workspace = true
 coral-log.workspace = true
 coral-runtime.workspace = true
+coral-util.workspace = true
 futures.workspace = true
 hyper = { workspace = true, features = ["client", "http2", "server"] }
 hyper-util = { workspace = true, features = ["default"] }

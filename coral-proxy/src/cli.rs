@@ -1,12 +1,10 @@
 use clap::Parser;
-use coral_log::Param;
 
 use crate::error::CoralRes;
 use crate::error::Error;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-#[command(next_line_help = true)]
 pub struct Cli {
     #[arg(long, help = "ca directory")]
     pub ca_dir: Option<String>,
@@ -20,17 +18,14 @@ pub struct Cli {
     #[arg(long, help = "server port")]
     pub port: u16,
 
-    #[arg(long, help = "start number of cpu cores")]
-    pub cpui: usize,
-
-    #[arg(long, help = "number of runtime")]
-    pub nums: usize,
-
     #[arg(long, help = "multiple backend address, exp 192.168.1.3:9001")]
     pub addresses: Vec<String>,
 
     #[command(flatten)]
-    param: Param,
+    pub log_param: coral_log::LogParam,
+
+    #[command(flatten)]
+    pub runtime_param: coral_runtime::RuntimeParam,
 }
 
 impl Cli {
@@ -41,7 +36,8 @@ impl Cli {
                 return Err(Error::InvalidCa);
             }
         }
-        args.param.check()?;
+        args.log_param.check()?;
+        args.runtime_param.check()?;
         Ok(args)
     }
 

@@ -7,7 +7,7 @@ pub use logs_proto::Record;
 #[cfg(debug_assertions)]
 pub(super) mod logs_proto;
 #[cfg(not(debug_assertions))]
-pub(super) mod record_proto {
+pub(super) mod logs_proto {
     include!(concat!(".", "/logs_proto.rs"));
 }
 

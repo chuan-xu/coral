@@ -12,14 +12,8 @@ pub enum Error {
     #[error("Io Error")]
     IoErr(#[from] std::io::Error),
 
-    #[error("missing log directory")]
-    MissingLogDir,
-
-    #[error("invalid log directory")]
-    InvalidLogDir,
-
-    #[error("missing log rotation")]
-    MissingLogRotation,
+    #[error("coral log error")]
+    CoralLogErr(#[from] coral_log::error::Error),
 }
 
 #[derive(Debug)]

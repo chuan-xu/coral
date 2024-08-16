@@ -6,9 +6,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+clap.workspace = true
 core_affinity.workspace = true
 thiserror.workspace  = true
 tokio.workspace  = true
-
-[dev-dependencies]
 num_cpus.workspace  = true

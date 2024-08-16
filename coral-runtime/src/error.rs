@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+pub type CoralRes<T> = Result<T, Error>;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("get core ids is none")]
@@ -19,4 +21,7 @@ pub enum Error {
 
     #[error("parse int error")]
     ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error("invalid cpu param")]
+    InvalidCpuNum,
 }

@@ -676,6 +676,7 @@ dependencies = [
  "prost-types",
  "thiserror",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -687,6 +688,7 @@ dependencies = [
  "clap",
  "coral-log",
  "coral-runtime",
+ "coral-util",
  "criterion",
  "futures",
  "http-body-util",
@@ -709,6 +711,7 @@ dependencies = [
 name = "coral-runtime"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "core_affinity",
  "num_cpus",
  "thiserror",
@@ -723,6 +726,7 @@ dependencies = [
  "clap",
  "coral-log",
  "coral-runtime",
+ "coral-util",
  "http-body",
  "http-body-util",
  "hyper",
@@ -730,6 +734,17 @@ dependencies = [
  "log",
  "thiserror",
  "tower",
+]
+
+[[package]]
+name = "coral-util"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "fastrace",
+ "log",
+ "tower",
+ "uuid",
 ]
 
 [[package]]

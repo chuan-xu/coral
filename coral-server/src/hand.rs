@@ -10,7 +10,6 @@ use log::info;
 
 #[allow(unused)]
 use crate::error::CoralErr;
-use crate::midw::EntryLayer;
 
 /// 健康检查
 async fn heartbeat() -> hyper::Response<axum::body::Body> {
@@ -46,10 +45,9 @@ async fn benchmark() -> BenchmarkRes {
 }
 
 pub fn app() -> axum::Router {
-    let entry_layer = EntryLayer::new();
     axum::Router::new()
         .route("/heartbeat", post(heartbeat))
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))
-        .layer(entry_layer)
+        .layer(coral_util::tow::TraceLayer::default())
 }
