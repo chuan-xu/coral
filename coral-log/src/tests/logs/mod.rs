@@ -15,10 +15,11 @@ impl std::io::Write for CaptureWriter {
     }
 }
 
+use bytes::BufMut;
 use log::info;
 
 use crate::logs::logger::Logger;
-use crate::logs::logs_proto;
+use crate::logs::logs_proto::{self, Record};
 #[test]
 fn check_coral_log() {
     let w = CaptureWriter { inner: Vec::new() };
@@ -36,4 +37,46 @@ fn check_coral_log() {
         })
         .unwrap();
     join.join().unwrap();
+}
+
+#[test]
+fn test_disk() {
+    let fd = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open("/root/tmp/benchlog.log")
+        .unwrap();
+    let logger = Logger::<Record>::new(log::Level::Info, None, fd).unwrap();
+    log::set_boxed_logger(Box::new(logger)).unwrap();
+    log::set_max_level(log::LevelFilter::Info);
+    let mut ths = Vec::new();
+    for i in 0..4 {
+        let th_name = String::from("th-") + i.to_string().as_str();
+
+        ths.push(
+            std::thread::Builder::new()
+                .name(th_name)
+                .spawn(|| {
+                    for _ in 0..250000 {
+                        info!(e = "some err info"; "XXX-xxx-aaa");
+                    }
+                })
+                .unwrap(),
+        );
+    }
+    while let Some(th) = ths.pop() {
+        th.join().unwrap();
+    }
+    println!("finish");
+}
+
+#[test]
+#[ignore = "manual"]
+fn test_nums() {
+    let mut fd = std::fs::File::open("/root/tmp/benchlog.log").unwrap();
+    let mut buf = bytes::BytesMut::with_capacity(1024).writer();
+    std::io::copy(&mut fd, &mut buf).unwrap();
+    let records = parse::parse_bytes(usize::MAX, buf).unwrap();
+    assert_eq!(records.len(), 1000000);
 }
