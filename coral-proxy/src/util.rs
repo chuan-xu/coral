@@ -1,6 +1,14 @@
 #![allow(unused)]
+use axum::http::uri::PathAndQuery;
+use hyper::Uri;
+use log::error;
 use regex::Regex;
-use std::sync::LazyLock;
+use std::{str::FromStr, sync::LazyLock};
+
+use crate::error::{CoralRes, Error};
+
+pub static HTTP_RESET_URI: &'static str = "/reset_http";
+pub static WS_RESET_URI: &'static str = "/reset_ws";
 
 // static DOT_DECIMAL_RE: Regex = Regex::new(r"^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9]):([0-9]{1,5})$").unwrap();
 
@@ -12,6 +20,44 @@ r"^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]
 
 pub fn is_valid_ipv4_with_port(addr: &str) -> bool {
     DOT_DECIMAL_RE.is_match(addr)
+}
+
+pub fn modify_path_uri(uri: &Uri, mod_path: &str) -> CoralRes<Uri> {
+    let authority = uri
+        .authority()
+        .ok_or_else(|| {
+            error!("uri.authority is none");
+            Error::NoneOption("uri.authority")
+        })?
+        .as_str();
+    if let Some(scheme_str) = uri.scheme_str() {
+        let mut scheme = scheme_str.to_string();
+        scheme += "://";
+        scheme += authority;
+        scheme += mod_path;
+        let nuri = hyper::Uri::try_from(scheme).map_err(|err| {
+            let e_str = err.to_string();
+            error!(
+                e = e_str.as_str(),
+                scheme = scheme_str,
+                authority = authority;
+                "failed to parse scheme"
+            );
+            err
+        })?;
+        Ok(nuri)
+    } else {
+        Ok(hyper::Uri::from_str(mod_path)?)
+    }
+}
+
+pub fn get_modify_path_url<'a>(uri: &'a Uri, mod_path: &str) -> CoralRes<(&'a PathAndQuery, Uri)> {
+    let path = uri.path_and_query().ok_or_else(|| {
+        error!("uri.path_and_query is none");
+        Error::NoneOption("uri.path_and_query")
+    })?;
+    let mod_path = modify_path_uri(uri, mod_path)?;
+    Ok((path, mod_path))
 }
 
 #[cfg(test)]

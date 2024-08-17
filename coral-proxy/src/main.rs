@@ -1,9 +1,10 @@
 mod cli;
 mod error;
-mod hand;
+mod http;
 mod io;
 mod tls;
 mod util;
+mod ws;
 
 use error::CoralRes;
 

@@ -6,17 +6,20 @@ use std::sync::Arc;
 use axum::body::BodyDataStream;
 use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
+use axum::Router;
 use coral_runtime::tokio;
+use hyper::body::Incoming;
 use hyper::client::conn::http2::Connection;
 use hyper::client::conn::http2::SendRequest;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
-use log::info;
-use log::trace;
+use tower::Service;
 
 use crate::error::CoralRes;
 use crate::error::Error;
+use crate::util::get_modify_path_url;
+use crate::util::HTTP_RESET_URI;
 
 /// 代理连接正常
 static PROXY_NORMAL: u8 = 0;
@@ -256,6 +259,20 @@ impl PxyPool {
         let mut conns = self.inner.write().await;
         conns.retain(|conn| conn.state.load(Ordering::Acquire) != PROXY_CLEANED);
     }
+}
+
+pub fn http_reset(
+    mut req: Request<Incoming>,
+    pool: PxyPool,
+    mut router: Router,
+) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
+    let ori_uri = req.uri();
+    let (path, mod_uri) = get_modify_path_url(ori_uri, HTTP_RESET_URI).unwrap();
+    let path = path.to_owned();
+    *(req.uri_mut()) = mod_uri;
+    req.extensions_mut().insert(path);
+    req.extensions_mut().insert(pool);
+    router.call(req)
 }
 
 pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {

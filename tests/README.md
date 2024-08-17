@@ -93,7 +93,7 @@ Options:
 ## curl test
 
 ```bash
-curl -X POST --cacert /root/certs/server.crt --cert /root/certs/client.crt --key /root/certs/client.key https://server.test.com:9000/benchmark
+curl -X POST --cacert ./tests/self_sign_cert/server.crt --cert ./tests/self_sign_cert/client.crt --key ./tests/self_sign_cert/client.key https://server.test.com:9000/benchmark
 
 # with header
 curl -X POST -H "X-Trace-Id: DCA4DCB7-79C6-FDC4-F262-EDD742F906FA" --cacert /root/certs/server.crt --cert /root/certs/client.crt --key /root/certs/client.key https://server.test.com:9000/benchmark

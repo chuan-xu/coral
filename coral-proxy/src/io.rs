@@ -1,67 +1,52 @@
-use axum::http::uri::PathAndQuery;
-use axum::http::Uri;
 use axum::routing::post;
 use axum::Router;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
+use hyper::header::CONNECTION;
+use hyper::header::SEC_WEBSOCKET_KEY;
+use hyper::header::UPGRADE;
+use hyper::Method;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
 use log::info;
 use tokio_rustls::TlsAcceptor;
-use tower::Service;
 
 use crate::cli;
 use crate::error::CoralRes;
-use crate::error::Error;
-use crate::hand::PxyPool;
-use crate::hand::{self};
+use crate::http::http_reset;
+use crate::http::PxyPool;
+use crate::http::{self};
 use crate::tls;
+use crate::util;
+use crate::ws;
+use crate::ws::websocket_reset;
 
-fn parse_url(uri: &Uri) -> CoralRes<(&PathAndQuery, Uri)> {
-    let path = uri.path_and_query().ok_or_else(|| {
-        error!("uri.path_and_query is none");
-        Error::NoneOption("uri.path_and_query")
-    })?;
-    let authority = uri
-        .authority()
-        .ok_or_else(|| {
-            error!("uri.authority is none");
-            Error::NoneOption("uri.authority")
-        })?
-        .as_str();
-    if let Some(scheme_str) = uri.scheme_str() {
-        let mut scheme = scheme_str.to_string();
-        scheme += "://";
-        scheme += authority;
-        let nuri = hyper::Uri::try_from(scheme).map_err(|err| {
-            let e_str = err.to_string();
-            error!(
-                e = e_str.as_str(),
-                scheme = scheme_str,
-                authority = authority;
-                "failed to parse scheme"
-            );
-            err
-        })?;
-        Ok((path, nuri))
-    } else {
-        Ok((path, hyper::Uri::from_static("/")))
-    }
-}
-
-fn service_fn(
-    mut req: hyper::Request<Incoming>,
+fn handle_request(
+    req: hyper::Request<Incoming>,
     pxy_pool: PxyPool,
-    mut tower_service: Router,
+    router: Router,
 ) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
-    let uri = req.uri();
-    let (path, nuri) = parse_url(uri).unwrap();
-    let path = path.to_owned();
-    *(req.uri_mut()) = nuri;
-    req.extensions_mut().insert(path);
-    req.extensions_mut().insert(pxy_pool);
-    tower_service.call(req)
+    let headers = req.headers();
+
+    // 判断是否是websocket连接
+    if headers
+        .get(CONNECTION)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.to_lowercase() == "upgrade")
+        .unwrap_or(false)
+        && headers
+            .get(UPGRADE)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.to_uppercase() == "websocket")
+            .unwrap_or(false)
+        && headers.get(SEC_WEBSOCKET_KEY).is_some()
+        && req.method() == Method::GET
+    {
+        websocket_reset(req, router)
+    } else {
+        http_reset(req, pxy_pool, router)
+    }
 }
 
 async fn hand_stream(
@@ -76,7 +61,8 @@ async fn hand_stream(
         Ok(stream) => {
             let stream = TokioIo::new(stream);
             let hyper_service = hyper::service::service_fn(|req: hyper::Request<Incoming>| {
-                service_fn(req, pxy_pool.clone(), tower_service.clone())
+                // handle_request(&req);
+                handle_request(req, pxy_pool.clone(), tower_service.clone())
             });
             let ret = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
                 .serve_connection_with_upgrades(stream, hyper_service)
@@ -98,7 +84,8 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
     let bind = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
     let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
     let app = Router::new()
-        .route("/", post(hand::proxy))
+        .route(util::HTTP_RESET_URI, post(http::proxy))
+        // .route(util::WS_RESET_URI, post(ws::proxy))
         .layer(coral_util::tow::TraceLayer::default());
     let pxy_pool = PxyPool::build(&args.addresses).await?;
 

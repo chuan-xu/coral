@@ -24,18 +24,16 @@ impl<C> Logger<C> {
             None => 4096,
         };
         let (tx, rx) = bounded::<Vec<u8>>(cap);
-        std::thread::spawn(move || {
-            loop {
-                match rx.recv() {
-                    Ok(chunk) => {
-                        if let Err(e) = writer.write(&chunk) {
-                            eprintln!("failed to writer log file {:?}", e);
-                        } else if let Err(e) = writer.flush() {
-                            eprintln!("failed to flush {:?}", e);
-                        }
+        std::thread::spawn(move || loop {
+            match rx.recv() {
+                Ok(chunk) => {
+                    if let Err(e) = writer.write(&chunk) {
+                        eprintln!("failed to writer log file {:?}", e);
+                    } else if let Err(e) = writer.flush() {
+                        eprintln!("failed to flush {:?}", e);
                     }
-                    Err(e) => eprint!("failed to recv from channel {:?}", e),
                 }
+                Err(e) => eprint!("failed to recv from channel {:?}", e),
             }
         });
         Ok(Self {
@@ -58,7 +56,7 @@ impl Convert for Stdout {
         let current = std::thread::current();
         let time = chrono::Local::now().to_rfc3339();
         let res = format!(
-            "====>{}: [{}]: {:?}",
+            "====>{}: [{}]: {:?}\n",
             time,
             current.name().unwrap_or(""),
             record
@@ -68,7 +66,8 @@ impl Convert for Stdout {
 }
 
 impl<C> Log for Logger<C>
-where C: Convert + Default + Send + Sync
+where
+    C: Convert + Default + Send + Sync,
 {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.target().starts_with("coral") && self.level >= metadata.level()

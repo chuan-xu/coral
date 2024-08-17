@@ -2,7 +2,6 @@
 use axum::extract::Request;
 use axum::http::HeaderValue;
 use fastrace::prelude::*;
-use log::debug;
 use tower::Layer;
 use tower::Service;
 
@@ -15,7 +14,8 @@ pub struct TraceMidware<S> {
 }
 
 impl<S> Service<Request> for TraceMidware<S>
-where S: Service<Request>
+where
+    S: Service<Request>,
 {
     type Response = S::Response;
 

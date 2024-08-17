@@ -3,3 +3,4 @@ bin
 Cargo.lock
 log
 tmp
+tests/websocket/node_modules
