@@ -1,3 +1,7 @@
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
 use axum::routing::post;
 use axum::Router;
 use coral_runtime::tokio;
@@ -15,6 +19,7 @@ use tokio_rustls::TlsAcceptor;
 use crate::cli;
 use crate::error::CoralRes;
 use crate::http::http_reset;
+use crate::http::ConnPool;
 use crate::http::PxyPool;
 use crate::http::{self};
 use crate::tls;
@@ -88,6 +93,29 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
         // .route(util::WS_RESET_URI, post(ws::proxy))
         .layer(coral_util::tow::TraceLayer::default());
     let pxy_pool = PxyPool::build(&args.addresses).await?;
+    let conn_pool = ConnPool::new();
+    let state = Arc::new(AtomicU8::new(0));
+    // let t = |v: Vec<String>| async move {};
+    if let Some(cache_addr) = args.CommParam.cache_addr.as_ref() {
+        tokio::spawn(coral_util::db::cache::discover(
+            cache_addr.to_owned(),
+            vec![String::from("")],
+            |address, pool| async move {
+                for addr in address.iter() {
+                    pool.clone().add(addr).await;
+                }
+            },
+            conn_pool.clone(),
+            state.clone(),
+        ));
+        loop {
+            match state.load(Ordering::Acquire) {
+                0 => tokio::time::sleep(std::time::Duration::from_secs(1)).await,
+                1 => return Err(crate::error::Error::DiscoverErr),
+                _ => break,
+            }
+        }
+    }
 
     futures::pin_mut!(tcp_listener);
     loop {

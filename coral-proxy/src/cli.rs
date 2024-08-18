@@ -18,8 +18,13 @@ pub struct Cli {
     #[arg(long, help = "server port")]
     pub port: u16,
 
+    // TODO will be deprecated
+    #[allow(unused)]
     #[arg(long, help = "multiple backend address, exp 192.168.1.3:9001")]
     pub addresses: Vec<String>,
+
+    #[command(flatten)]
+    pub CommParam: coral_util::cli::CommParam,
 
     #[command(flatten)]
     pub log_param: coral_log::LogParam,

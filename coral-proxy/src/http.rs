@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::cell::UnsafeCell;
+use std::collections::HashSet;
+use std::collections::LinkedList;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
@@ -8,6 +12,7 @@ use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
 use axum::Router;
 use coral_runtime::tokio;
+use coral_runtime::tokio::sync::RwLock;
 use hyper::body::Incoming;
 use hyper::client::conn::http2::Connection;
 use hyper::client::conn::http2::SendRequest;
@@ -146,6 +151,33 @@ impl PxyConn {
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        }
+    }
+}
+
+pub struct ConnPool {
+    conns: tokio::sync::RwLock<LinkedList<PxyConn>>,
+    endpoints: HashSet<String>,
+}
+
+impl ConnPool {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            conns: RwLock::new(LinkedList::new()),
+            endpoints: HashSet::new(),
+        })
+    }
+
+    pub async fn add(self: Arc<Self>, addr: &str) {
+        match PxyConn::new(&addr).await {
+            Ok(conn) => {
+                let mut conns = self.conns.write().await;
+                conns.push_front(conn)
+            }
+            Err(err) => {
+                let e_str = err.to_string();
+                error!(e = e_str.as_str(); "failed to new proxy conn");
+            }
         }
     }
 }

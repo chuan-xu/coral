@@ -43,6 +43,9 @@ pub enum Error {
 
     #[error("coral log error")]
     CoralLogErr(#[from] coral_log::error::Error),
+
+    #[error("failed to service discovery")]
+    DiscoverErr,
 }
 
 impl IntoResponse for Error {

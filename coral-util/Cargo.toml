@@ -7,8 +7,17 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 axum = { workspace = true }
+clap.workspace = true
 fastrace = { workspace = true, features = ["enable"] }
 log = { workspace = true }
+thiserror.workspace= true
 tower = { workspace = true, features = ["full"] }
 uuid.workspace = true 
+
+mini-redis = { git = "https://github.com/tokio-rs/mini-redis.git", recv = "e186482ca00f8d884ddcbe20417f3654d03315a4" }
+
+[dev-dependencies]
+tokio= { workspace = true, features = ["full"] }
+criterion.workspace = true

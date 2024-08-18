@@ -15,6 +15,7 @@ repository = "https://github.com/chuan-xu/coral.git"
 rust-version = "1.80.0"
 
 [workspace.dependencies]
+async-trait = "0.1"
 axum = { version = "0.7", default-features = false, features = ["http2", "multipart", "original-uri", "tokio"] }
 axum-server = { version = "0.6", features = ["tls-rustls"] }
 bytes = "1"
