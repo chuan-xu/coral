@@ -7,6 +7,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bytes.workspace = true
 axum = { workspace = true, features = ["http2", "multipart", "original-uri", "tokio"] }
 clap.workspace = true
 coral-log.workspace = true
@@ -16,6 +17,7 @@ hyper = { workspace = true, features = ["full"] }
 hyper-util = { workspace = true, features = ["full"] }
 http-body.workspace = true
 http-body-util.workspace = true
+local-ip-address.workspace = true
 log = { workspace = true }
 thiserror.workspace = true
 tower = { workspace = true, features = ["full"] }

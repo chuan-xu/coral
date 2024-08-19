@@ -1,7 +1,7 @@
-use std::sync::atomic::AtomicU8;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::net::SocketAddr;
 
+use axum::body::Body;
+use axum::extract::Request;
 use axum::routing::post;
 use axum::Router;
 use coral_runtime::tokio;
@@ -10,27 +10,31 @@ use hyper::header::CONNECTION;
 use hyper::header::SEC_WEBSOCKET_KEY;
 use hyper::header::UPGRADE;
 use hyper::Method;
+use hyper::Uri;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
 use log::info;
 use tokio_rustls::TlsAcceptor;
+use tower::Service;
 
 use crate::cli;
 use crate::error::CoralRes;
 use crate::http::http_reset;
+use crate::http::set_discover;
 use crate::http::ConnPool;
-use crate::http::PxyPool;
 use crate::http::{self};
 use crate::tls;
 use crate::util;
+use crate::util::WS_RESET_URI;
 use crate::ws;
-use crate::ws::websocket_reset;
+use crate::ws::websocket_conn_hand;
 
 fn handle_request(
     req: hyper::Request<Incoming>,
-    pxy_pool: PxyPool,
-    router: Router,
+    pxy_pool: ConnPool,
+    mut router: Router,
+    addr: SocketAddr,
 ) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
     let headers = req.headers();
 
@@ -48,7 +52,12 @@ fn handle_request(
         && headers.get(SEC_WEBSOCKET_KEY).is_some()
         && req.method() == Method::GET
     {
-        websocket_reset(req, router)
+        let mut reqc = Request::<Body>::default();
+        *reqc.version_mut() = req.version();
+        *reqc.headers_mut() = req.headers().clone();
+        *(reqc.uri_mut()) = Uri::from_static(WS_RESET_URI);
+        tokio::spawn(websocket_conn_hand(req, addr));
+        router.call(reqc)
     } else {
         http_reset(req, pxy_pool, router)
     }
@@ -57,17 +66,16 @@ fn handle_request(
 async fn hand_stream(
     tls_accept: TlsAcceptor,
     cnx: tokio::net::TcpStream,
-    addr: std::net::SocketAddr,
+    addr: SocketAddr,
     tower_service: Router,
-    pxy_pool: PxyPool,
+    pxy_pool: ConnPool,
 ) {
     info!("new connection: {}", addr);
     match tls_accept.accept(cnx).await {
         Ok(stream) => {
             let stream = TokioIo::new(stream);
             let hyper_service = hyper::service::service_fn(|req: hyper::Request<Incoming>| {
-                // handle_request(&req);
-                handle_request(req, pxy_pool.clone(), tower_service.clone())
+                handle_request(req, pxy_pool.clone(), tower_service.clone(), addr)
             });
             let ret = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
                 .serve_connection_with_upgrades(stream, hyper_service)
@@ -90,32 +98,10 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
     let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
     let app = Router::new()
         .route(util::HTTP_RESET_URI, post(http::proxy))
-        // .route(util::WS_RESET_URI, post(ws::proxy))
+        .route(util::WS_RESET_URI, post(ws::websocket_upgrade_hand))
         .layer(coral_util::tow::TraceLayer::default());
-    let pxy_pool = PxyPool::build(&args.addresses).await?;
     let conn_pool = ConnPool::new();
-    let state = Arc::new(AtomicU8::new(0));
-    // let t = |v: Vec<String>| async move {};
-    if let Some(cache_addr) = args.CommParam.cache_addr.as_ref() {
-        tokio::spawn(coral_util::db::cache::discover(
-            cache_addr.to_owned(),
-            vec![String::from("")],
-            |address, pool| async move {
-                for addr in address.iter() {
-                    pool.clone().add(addr).await;
-                }
-            },
-            conn_pool.clone(),
-            state.clone(),
-        ));
-        loop {
-            match state.load(Ordering::Acquire) {
-                0 => tokio::time::sleep(std::time::Duration::from_secs(1)).await,
-                1 => return Err(crate::error::Error::DiscoverErr),
-                _ => break,
-            }
-        }
-    }
+    set_discover(args.comm_param.cache_addr.as_ref(), conn_pool.clone()).await?;
 
     futures::pin_mut!(tcp_listener);
     loop {
@@ -126,7 +112,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
                     cnx,
                     addr,
                     app.clone(),
-                    pxy_pool.clone(),
+                    conn_pool.clone(),
                 ));
             }
             Err(err) => {

@@ -24,7 +24,7 @@ pub struct Cli {
     pub addresses: Vec<String>,
 
     #[command(flatten)]
-    pub CommParam: coral_util::cli::CommParam,
+    pub comm_param: coral_util::cli::CommParam,
 
     #[command(flatten)]
     pub log_param: coral_log::LogParam,

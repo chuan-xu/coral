@@ -1,7 +1,3 @@
-use std::cell::RefCell;
-use std::cell::UnsafeCell;
-use std::collections::HashSet;
-use std::collections::LinkedList;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
@@ -134,6 +130,7 @@ impl PxyConn {
         Ok(())
     }
 
+    /// 对已关闭的连接，检查是否还有没有释放的句柄，完全释放后将状态改为关闭状态
     async fn clean_check(self) {
         loop {
             if self.count.load(Ordering::Acquire) == 0 {
@@ -156,37 +153,10 @@ impl PxyConn {
 }
 
 pub struct ConnPool {
-    conns: tokio::sync::RwLock<LinkedList<PxyConn>>,
-    endpoints: HashSet<String>,
-}
-
-impl ConnPool {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            conns: RwLock::new(LinkedList::new()),
-            endpoints: HashSet::new(),
-        })
-    }
-
-    pub async fn add(self: Arc<Self>, addr: &str) {
-        match PxyConn::new(&addr).await {
-            Ok(conn) => {
-                let mut conns = self.conns.write().await;
-                conns.push_front(conn)
-            }
-            Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "failed to new proxy conn");
-            }
-        }
-    }
-}
-
-pub struct PxyPool {
     inner: Arc<tokio::sync::RwLock<Vec<PxyConn>>>,
 }
 
-impl Clone for PxyPool {
+impl Clone for ConnPool {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -194,33 +164,42 @@ impl Clone for PxyPool {
     }
 }
 
-impl PxyPool {
-    async fn add(&self, addr: &str) -> CoralRes<()> {
-        let mut conns = self.inner.write().await;
-        conns.push(PxyConn::new(addr).await?);
-        Ok(())
+impl ConnPool {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(Vec::new())),
+        }
     }
 
-    async fn reconn(self, addr: String) {
-        loop {
-            if let Ok(conn) = PxyConn::new(&addr).await {
-                let mut conns = self.inner.write().await;
-                conns.push(conn);
-            } else {
-                error!(address = addr.as_str(); "failed to reconn");
+    async fn check_repeated(self, addr: &str) -> bool {
+        let conns = self.inner.read().await;
+        for conn in conns.iter() {
+            if conn.addr == addr && conn.state.load(Ordering::Acquire) == PROXY_NORMAL {
+                return false;
             }
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        }
+        return true;
+    }
+
+    async fn add(self, addr: &str) {
+        // 防止创建重复的连接
+        if self.clone().check_repeated(addr).await {
+            match PxyConn::new(&addr).await {
+                Ok(conn) => {
+                    let mut conns = self.inner.write().await;
+                    conns.push(conn)
+                }
+                Err(err) => {
+                    let e_str = err.to_string();
+                    error!(e = e_str.as_str(); "failed to new proxy conn");
+                }
+            }
         }
     }
 
-    pub async fn build(addrs: &Vec<String>) -> CoralRes<Self> {
-        let pool = PxyPool {
-            inner: Arc::new(tokio::sync::RwLock::new(Vec::new())),
-        };
-        for addr in addrs.iter() {
-            pool.add(addr.as_str()).await?;
-        }
-        Ok(pool)
+    async fn remove(self) {
+        let mut conns = self.inner.write().await;
+        conns.retain(|conn| conn.state.load(Ordering::Acquire) != PROXY_CLEANED);
     }
 
     fn check_state(&self, conn: &PxyConn) -> u64 {
@@ -261,7 +240,6 @@ impl PxyPool {
                         "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
                     );
                 } else {
-                    tokio::spawn(self.clone().reconn(conn.addr.clone()));
                     tokio::spawn(conn.clone().clean_check());
                 }
             }
@@ -273,7 +251,7 @@ impl PxyPool {
         res
     }
 
-    async fn balance(&self) -> Option<PxyConn> {
+    async fn balance(self) -> Option<PxyConn> {
         let conns = self.inner.read().await;
         let mut conn = None;
         let mut max = u64::MAX;
@@ -286,16 +264,47 @@ impl PxyPool {
         }
         conn
     }
+}
 
-    async fn remove(self) {
-        let mut conns = self.inner.write().await;
-        conns.retain(|conn| conn.state.load(Ordering::Acquire) != PROXY_CLEANED);
+pub async fn set_discover(cache_addr: Option<&String>, conn_pool: ConnPool) -> CoralRes<()> {
+    if let Some(cache_addr) = cache_addr {
+        let mut client = coral_util::db::cache::MiniRedis::new(cache_addr).await?;
+        if let Some(vals) = client.get(coral_util::consts::REDIS_KEY_DISCOVER).await? {
+            let endpoints = vals
+                .split(|k| *k == 44)
+                .filter_map(|k| std::str::from_utf8(k).ok())
+                .collect::<Vec<&str>>();
+            for end in endpoints.iter() {
+                conn_pool.clone().add(&end).await;
+            }
+        }
+        let state = Arc::new(AtomicU8::new(0));
+        tokio::spawn(coral_util::db::cache::discover(
+            cache_addr.to_owned(),
+            vec![String::from(coral_util::consts::REDIS_KEY_NOTIFY)],
+            |address, pool| async move {
+                for addr in address.iter() {
+                    pool.clone().add(addr).await;
+                }
+            },
+            conn_pool,
+            state.clone(),
+        ));
+        // 等待连接成功
+        loop {
+            match state.load(Ordering::Acquire) {
+                0 => tokio::time::sleep(std::time::Duration::from_secs(1)).await,
+                1 => return Err(crate::error::Error::DiscoverErr),
+                _ => break,
+            }
+        }
     }
+    Ok(())
 }
 
 pub fn http_reset(
     mut req: Request<Incoming>,
-    pool: PxyPool,
+    pool: ConnPool,
     mut router: Router,
 ) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
     let ori_uri = req.uri();
@@ -316,9 +325,9 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
             Error::NoneOption("PathAndQuery ")
         })?
         .clone();
-    let pxy_pool = req
+    let pool = req
         .extensions()
-        .get::<PxyPool>()
+        .get::<ConnPool>()
         .ok_or_else(|| {
             error!("PxyPool is none");
             Error::NoneOption("PxyPool")
@@ -337,7 +346,7 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
         error!(e = e_str.as_str(); "failed to build trans body");
         err
     })?;
-    let pxy_conn = pxy_pool.balance().await.ok_or_else(|| {
+    let pxy_conn = pool.balance().await.ok_or_else(|| {
         error!("pxy_conn get balance is none");
         Error::NoneOption("pxy_conn")
     })?;

@@ -9,6 +9,9 @@ pub struct Cli {
     pub port: u16,
 
     #[command(flatten)]
+    pub comm_param: coral_util::cli::CommParam,
+
+    #[command(flatten)]
     pub log_param: coral_log::LogParam,
 
     #[command(flatten)]

@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use axum::extract::Request;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
@@ -11,8 +13,32 @@ use crate::cli;
 use crate::error::CoralRes;
 use crate::hand;
 
+async fn notify(args: &cli::Cli) -> CoralRes<()> {
+    if let Some(addr) = args.comm_param.cache_addr.as_ref() {
+        let mut client = coral_util::db::cache::MiniRedis::new(addr).await?;
+        let local = SocketAddr::new(local_ip_address::local_ip()?, args.port).to_string();
+        let endpoints = match client.get(coral_util::consts::REDIS_KEY_DISCOVER).await? {
+            Some(data) => {
+                let mut ends = data.split(|k| *k == 44).collect::<Vec<&[u8]>>();
+                ends.push(local.as_bytes());
+                bytes::Bytes::from(ends.join(&44))
+            }
+            None => bytes::Bytes::from(local),
+        };
+
+        client
+            .set(coral_util::consts::REDIS_KEY_DISCOVER, endpoints)
+            .await?;
+        client
+            .publish(coral_util::consts::REDIS_KEY_NOTIFY, bytes::Bytes::from(""))
+            .await?;
+    }
+    Ok(())
+}
+
 async fn server(args: cli::Cli) -> CoralRes<()> {
     args.log_param.set_traces();
+    notify(&args).await?;
     let app = hand::app();
     let addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
     let listen = tokio::net::TcpListener::bind(addr).await?;

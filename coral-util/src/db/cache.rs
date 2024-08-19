@@ -1,24 +1,72 @@
 //! some redis
 
-use async_trait::async_trait;
-use log::error;
-use std::cell::RefCell;
 use std::future::Future;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::consts::{REDIS_KEY_DISCOVER, REDIS_KEY_NOTIFY};
-use crate::error::{CoralRes, Error};
+use log::error;
+use tokio::net::ToSocketAddrs;
+
+use crate::consts::REDIS_KEY_DISCOVER;
+use crate::error::CoralRes;
+use crate::error::Error;
 
 // redis TODO
 
-/// mini-redis
+pub struct MiniRedis {
+    inner: mini_redis::Client,
+}
 
-// unsafe impl Send for MiniRedis {}
-// unsafe impl Sync for MiniRedis {}
+impl MiniRedis {
+    pub async fn new<T>(addr: T) -> CoralRes<Self>
+    where T: ToSocketAddrs {
+        match mini_redis::Client::connect(addr).await {
+            Ok(client) => Ok(Self { inner: client }),
+            Err(err) => {
+                let e_str = err.to_string();
+                error!(e = e_str.as_str(); "failed to connect mini redis");
+                Err(Error::CacheCreateErr)
+            }
+        }
+    }
 
-pub async fn discover<F, Fut, P>(
-    addr: String,
+    pub async fn get(&mut self, key: &str) -> CoralRes<Option<bytes::Bytes>> {
+        match self.inner.get(key).await {
+            Ok(val) => Ok(val),
+            Err(err) => {
+                let e_str = err.to_string();
+                error!(e = e_str.as_str(); "");
+                Err(Error::CacheGetErr)
+            }
+        }
+    }
+
+    pub async fn set(&mut self, key: &str, value: bytes::Bytes) -> CoralRes<()> {
+        match self.inner.set(key, value).await {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                let e_str = err.to_string();
+                error!(e = e_str.as_str(); "failed to set mini redis value");
+                Err(Error::CacheSetErr)
+            }
+        }
+    }
+
+    pub async fn publish(&mut self, channel: &str, data: bytes::Bytes) -> CoralRes<()> {
+        match self.inner.publish(channel, data).await {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                let e_str = err.to_string();
+                error!(e = e_str.as_str(); "failed to publish by mini redis client");
+                Err(Error::CachePublishErr)
+            }
+        }
+    }
+}
+
+pub async fn discover<F, Fut, P, S>(
+    addr: S,
     channels: Vec<String>,
     f: F,
     p: P,
@@ -27,6 +75,7 @@ pub async fn discover<F, Fut, P>(
     F: Fn(Vec<String>, P) -> Fut,
     Fut: Future<Output = ()> + 'static,
     P: Clone,
+    S: ToSocketAddrs,
 {
     let client = mini_redis::Client::connect(&addr).await;
     if let Err(err) = client {
@@ -83,31 +132,6 @@ pub async fn discover<F, Fut, P>(
         }
     }
 }
-
-// #[async_trait]
-// impl SvcDiscover for MiniRedis {
-//     async fn get_backends(&self) -> Vec<String> {
-//         if let Ok(val) = self.client.borrow_mut().get(REDIS_KEY_DISCOVER).await {
-//             if let Some(val) = val {
-//                 return val
-//                     .split(|k| *k == 44)
-//                     .filter_map(|item| std::str::from_utf8(item).ok())
-//                     .map(|x| x.to_owned())
-//                     .collect();
-//             }
-//         }
-//         vec![]
-//     }
-
-//     async fn listen_update(&self) -> bool {
-//         if let Some(subscriber) = self.subscriber.as_mut() {
-//             if let Ok(msg) = subscriber.next_message().await {
-//                 return msg.is_some();
-//             }
-//         }
-//         false
-//     }
-// }
 
 #[allow(unused)]
 mod seal {

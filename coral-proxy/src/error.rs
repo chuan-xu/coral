@@ -4,6 +4,7 @@ use axum::http::uri::InvalidUri;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use coral_runtime::Error as RuntimeErr;
+use hyper::header::InvalidHeaderValue;
 use rustls::server::VerifierBuilderError;
 use thiserror::Error;
 
@@ -26,6 +27,9 @@ pub enum Error {
     #[error("{0} is None")]
     NoneOption(&'static str),
 
+    #[error("header {0} is None")]
+    MissingHeader(&'static str),
+
     #[error("hyper inner error")]
     HyperInner(#[from] hyper::Error),
 
@@ -41,11 +45,17 @@ pub enum Error {
     #[error("invalid uri")]
     InvalidUri(#[from] InvalidUri),
 
+    #[error("failed to conver str to header")]
+    HeaderFromStrErr(#[from] InvalidHeaderValue),
+
     #[error("coral log error")]
     CoralLogErr(#[from] coral_log::error::Error),
 
     #[error("failed to service discovery")]
     DiscoverErr,
+
+    #[error("coral util module error")]
+    CoralUtilErr(#[from] coral_util::error::Error),
 }
 
 impl IntoResponse for Error {

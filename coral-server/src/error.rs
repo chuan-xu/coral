@@ -14,6 +14,12 @@ pub enum Error {
 
     #[error("coral log error")]
     CoralLogErr(#[from] coral_log::error::Error),
+
+    #[error("coral util module error")]
+    CoralUtilErr(#[from] coral_util::error::Error),
+
+    #[error("failed to get local address")]
+    LocalAddr(#[from] local_ip_address::Error),
 }
 
 #[derive(Debug)]
