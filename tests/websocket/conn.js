@@ -17,3 +17,7 @@ ws.on('open', function open() {
 ws.on('message', function message(data) {
   console.log('received: %s', data);
 });
+
+ws.on('close', function close() {
+  console.log('disconnected');
+});

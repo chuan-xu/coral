@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use axum::body::Body;
 use axum::extract::Request;
+use axum::routing::get;
 use axum::routing::post;
 use axum::Router;
 use coral_runtime::tokio;
@@ -47,7 +48,7 @@ fn handle_request(
         && headers
             .get(UPGRADE)
             .and_then(|v| v.to_str().ok())
-            .map(|v| v.to_uppercase() == "websocket")
+            .map(|v| v.to_lowercase() == "websocket")
             .unwrap_or(false)
         && headers.get(SEC_WEBSOCKET_KEY).is_some()
         && req.method() == Method::GET
@@ -98,7 +99,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
     let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
     let app = Router::new()
         .route(util::HTTP_RESET_URI, post(http::proxy))
-        .route(util::WS_RESET_URI, post(ws::websocket_upgrade_hand))
+        .route(util::WS_RESET_URI, get(ws::websocket_upgrade_hand))
         .layer(coral_util::tow::TraceLayer::default());
     let conn_pool = ConnPool::new();
     set_discover(args.comm_param.cache_addr.as_ref(), conn_pool.clone()).await?;
