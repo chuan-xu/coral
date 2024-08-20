@@ -5,6 +5,3 @@ pub mod traces;
 
 pub use cli::LogParam;
 mod cli;
-
-#[cfg(test)]
-mod tests;

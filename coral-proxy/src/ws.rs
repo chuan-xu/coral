@@ -29,16 +29,15 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>, addr: SocketAddr) {
             let stream = TokioIo::new(io);
             let ws_stream = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
             let (mut outgoing, mut incoming) = ws_stream.split();
+            // incoming.map(|v| match v {
+            //     Ok(msg) => todo!(),
+            //     Err(err) => todo!(),
+            // })
             if let Some(res) = incoming.next().await {
                 match res {
                     Ok(msg) => {
-                        println!("+++++++++{:?}", msg);
-                        if let Err(e) = outgoing.send(msg).await {
-                            println!("-------- {:?}", e);
-                        }
-                        if let Err(e) = outgoing.flush().await {
-                            println!("--------- {:?}", e);
-                        }
+                        if let Err(e) = outgoing.send(msg).await {}
+                        if let Err(e) = outgoing.flush().await {}
                     }
                     Err(e) => println!("====== {:?}", e),
                 }

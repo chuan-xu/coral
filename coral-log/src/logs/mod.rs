@@ -1,6 +1,6 @@
 use crate::error::CoralRes;
 
-pub mod format;
+mod format;
 pub mod logger;
 pub use logs_proto::Record;
 

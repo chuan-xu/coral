@@ -22,6 +22,7 @@ bytes = "1"
 chrono = "0.4"
 clap = { version = "4.5", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions", "derive"] }
 coral-log = { path = "coral-log" }
+coral-macro = { path = "coral-macro" }
 coral-runtime = { path = "coral-runtime" }
 coral-util = { path = "coral-util" }
 core_affinity = "0.8"

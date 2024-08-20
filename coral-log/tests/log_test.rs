@@ -1,4 +1,4 @@
-mod parse;
+mod log_parse;
 struct CaptureWriter {
     inner: Vec<u8>,
 }
@@ -16,14 +16,13 @@ impl std::io::Write for CaptureWriter {
 }
 
 use bytes::BufMut;
+use coral_log::logs::logger::Logger;
+use coral_log::logs::Record;
 use log::info;
-
-use crate::logs::logger::Logger;
-use crate::logs::logs_proto::{self, Record};
 #[test]
 fn check_coral_log() {
     let w = CaptureWriter { inner: Vec::new() };
-    let h = Logger::<logs_proto::Record>::new(log::Level::Info, Some(1024), w).unwrap();
+    let h = Logger::<Record>::new(log::Level::Info, Some(1024), w).unwrap();
     log::set_boxed_logger(Box::new(h)).unwrap();
     log::set_max_level(log::LevelFilter::Info);
     info!("nihao");
@@ -77,6 +76,6 @@ fn test_nums() {
     let mut fd = std::fs::File::open("/root/tmp/benchlog.log").unwrap();
     let mut buf = bytes::BytesMut::with_capacity(1024).writer();
     std::io::copy(&mut fd, &mut buf).unwrap();
-    let records = parse::parse_bytes(usize::MAX, buf).unwrap();
+    let records = log_parse::parse_bytes(usize::MAX, buf).unwrap();
     assert_eq!(records.len(), 1000000);
 }

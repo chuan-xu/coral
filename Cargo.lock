@@ -748,6 +748,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "coral-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "coral-proxy"
 version = "0.1.0"
 dependencies = [
@@ -816,6 +825,7 @@ dependencies = [
  "axum",
  "bytes",
  "clap",
+ "coral-macro",
  "criterion",
  "fastrace",
  "log",
