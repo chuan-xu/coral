@@ -751,6 +751,8 @@ dependencies = [
 name = "coral-macro"
 version = "0.1.0"
 dependencies = [
+ "fastrace",
+ "log",
  "proc-macro2",
  "quote",
  "syn 2.0.72",
