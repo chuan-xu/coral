@@ -1,11 +1,17 @@
 //! tower middleware
+use std::future::Future;
+use std::pin::Pin;
+
 use axum::extract::Request;
+use axum::http::HeaderMap;
 use axum::http::HeaderValue;
+use fastrace::future::FutureExt;
 use fastrace::prelude::*;
 use tower::Layer;
 use tower::Service;
 
 use super::consts::HTTP_HEADER_TRACE_ID;
+use crate::consts::HTTP_HEADER_SPAN_ID;
 
 /// midware for add trace id
 #[derive(Clone)]
@@ -15,13 +21,16 @@ pub struct TraceMidware<S> {
 
 impl<S> Service<Request> for TraceMidware<S>
 where
-    S: Service<Request>,
+    S: Service<Request> + Send + 'static,
+    S::Future: Send + 'static,
 {
     type Response = S::Response;
 
     type Error = S::Error;
 
-    type Future = S::Future;
+    // type Future = S::Future;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
 
     fn poll_ready(
         &mut self,
@@ -31,38 +40,56 @@ where
     }
 
     fn call(&mut self, mut req: Request) -> Self::Future {
-        if req.uri().path() == "/heartbeat" {
-            return self.inner.call(req);
-        }
+        // if req.uri().path() == "/heartbeat" {
+        //     return Box::pin(async { self.inner.call(req).await });
+        // }
         let header = req.headers_mut();
         let res = match header.get(HTTP_HEADER_TRACE_ID) {
             Some(val) => val
                 .to_str()
                 .map(|v| TraceId::from(CoralTraceId::from(v)))
                 .map_err(|err| {
-                    let e_str = err.to_string();
-                    log::error!(e = e_str.as_str(); "failed to convert trace header value to str");
+                    log::error!(e = err.to_string(); "failed to convert trace header value to str");
                 }),
             None => {
                 let trace_id = uuid::Uuid::new_v4().to_string();
-                // let trace_str = trace_id.to_string();
                 HeaderValue::from_str(trace_id.as_str()).map(|v| {
                     header.insert(HTTP_HEADER_TRACE_ID, v);
                     TraceId::from(CoralTraceId::from(trace_id.as_str()))
                 }).map_err(|err| {
-                        let e_str = err.to_string();
-                        log::error!(e = e_str.as_str(); "failed to convert uuid bytes to header value");
+                        log::error!(e = err.to_string(); "failed to convert uuid bytes to header value");
                     })
             }
+        };
+        let span_id = match header.get(HTTP_HEADER_SPAN_ID) {
+            Some(val) => match val.to_str() {
+                Ok(v) => match v.parse::<u64>() {
+                    Ok(id) => Some(SpanId(id)),
+                    Err(err) => {
+                        log::error!(e = err.to_string(); "failed to convert span header str to u64");
+                        None
+                    }
+                },
+                Err(err) => {
+                    log::error!(e = err.to_string(); "failed to convert span header value to str");
+                    None
+                }
+            },
+            None => None,
         };
         if let Ok(trace_id) = res {
             let mut root_ctx = SpanContext::random();
             root_ctx.trace_id = trace_id;
+            if let Some(id) = span_id {
+                root_ctx.span_id = id;
+            }
             let root_span = Span::root("trace_id", root_ctx);
-            let _guard = root_span.set_local_parent();
-            self.inner.call(req)
+
+            let fut = self.inner.call(req).in_span(root_span);
+            Box::pin(async move { fut.await })
         } else {
-            self.inner.call(req)
+            let fut = self.inner.call(req);
+            Box::pin(async move { fut.await })
         }
     }
 }
@@ -95,5 +122,12 @@ impl<'a> std::convert::From<&'a str> for CoralTraceId {
             .zip(byte.iter())
             .for_each(|(v0, v1)| *v0 = *v1);
         Self(u128::from_be_bytes(u128byte))
+    }
+}
+
+/// header中添加当前trace的span id
+pub fn add_header_span_id(header: &mut HeaderMap) {
+    if let Some(span) = SpanContext::current_local_parent() {
+        header.insert(HTTP_HEADER_SPAN_ID, HeaderValue::from(span.span_id.0));
     }
 }

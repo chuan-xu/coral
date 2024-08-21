@@ -7,8 +7,10 @@ use axum::body::BodyDataStream;
 use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
 use axum::Router;
+use coral_macro::trace_error;
 use coral_runtime::tokio;
 use coral_runtime::tokio::sync::RwLock;
+use coral_util::tow::add_header_span_id;
 use hyper::body::Incoming;
 use hyper::client::conn::http2::Connection;
 use hyper::client::conn::http2::SendRequest;
@@ -112,8 +114,7 @@ impl PxyConn {
 
     async fn keep_conn(conn: HandshakeConn, addr: String) {
         if let Err(err) = conn.await {
-            let e_str = err.to_string();
-            error!(e = e_str.as_str(), addr = addr.as_str(); "Proxy disconnect");
+            error!(e = err.to_string(), addr = addr.as_str(); "Proxy disconnect");
         }
     }
 
@@ -190,8 +191,7 @@ impl ConnPool {
                     conns.push(conn)
                 }
                 Err(err) => {
-                    let e_str = err.to_string();
-                    error!(e = e_str.as_str(); "failed to new proxy conn");
+                    error!(e = err.to_string(); "failed to new proxy conn");
                 }
             }
         }
@@ -341,9 +341,10 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
         Error::NoneOption("trans header")
     })?;
     *trans_headers = headers;
+    add_header_span_id(trans_headers);
+
     let trans_req = trans_builder.body(body).map_err(|err| {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "failed to build trans body");
+        error!(e = err.to_string(); "failed to build trans body");
         err
     })?;
     let pxy_conn = pool.balance().await.ok_or_else(|| {
@@ -352,8 +353,7 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
     })?;
     let (mut sender, _guard) = pxy_conn.get_sender();
     let rsp = sender.send_request(trans_req).await.map_err(|err| {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "Forwarding request failed");
+        trace_error!(e = err.to_string(); "Forwarding request failed");
         err
     })?;
     Ok(rsp)

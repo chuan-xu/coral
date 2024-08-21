@@ -117,8 +117,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
                 ));
             }
             Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "failed to tcp accept");
+                error!(e = err.to_string(); "failed to tcp accept");
             }
         }
     }
@@ -128,8 +127,7 @@ pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
     let rt = coral_runtime::runtime(&args.runtime_param, "coral-proxy")?;
     if let Err(err) = rt.block_on(server(args)) {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "block on server error");
+        error!(e = err.to_string(); "block on server error");
     }
     Ok(())
 }

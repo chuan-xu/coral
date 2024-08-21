@@ -1,16 +1,21 @@
 #![allow(unused)]
+use std::str::FromStr;
+use std::sync::LazyLock;
+
 use axum::http::uri::PathAndQuery;
 use hyper::Uri;
 use log::error;
 use regex::Regex;
-use std::{str::FromStr, sync::LazyLock};
 
-use crate::error::{CoralRes, Error};
+use crate::error::CoralRes;
+use crate::error::Error;
 
 pub static HTTP_RESET_URI: &'static str = "/reset_http";
 pub static WS_RESET_URI: &'static str = "/reset_ws";
 
-// static DOT_DECIMAL_RE: Regex = Regex::new(r"^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9]):([0-9]{1,5})$").unwrap();
+// static DOT_DECIMAL_RE: Regex =
+// Regex::new(r"^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.
+// ){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9]):([0-9]{1,5})$").unwrap();
 
 static DOT_DECIMAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -36,9 +41,8 @@ pub fn modify_path_uri(uri: &Uri, mod_path: &str) -> CoralRes<Uri> {
         scheme += authority;
         scheme += mod_path;
         let nuri = hyper::Uri::try_from(scheme).map_err(|err| {
-            let e_str = err.to_string();
             error!(
-                e = e_str.as_str(),
+                e = err.to_string(),
                 scheme = scheme_str,
                 authority = authority;
                 "failed to parse scheme"

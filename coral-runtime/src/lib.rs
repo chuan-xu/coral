@@ -28,10 +28,10 @@ pub fn runtime(
         .on_thread_start(move || {
             if let Ok(index) = get_thread_index() {
                 if !core_affinity::set_for_current(cores[index].clone()) {
-                    eprintln!("failed to core affinity");
+                    log::error!("failed to core affinity");
                 }
             } else {
-                eprintln!("failed to get thread index on thread start");
+                log::error!("failed to get thread index on thread start");
             }
         })
         .build()?;

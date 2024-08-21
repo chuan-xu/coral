@@ -32,20 +32,20 @@ Options:
 
 # 日志输出至文件
 # 节点 1
-./bin/coral-server --port 9001 --cpui 2 --nums 2 --dir $PWD/log --prefix server0.log
+./bin/coral-server --port 9001 --cpui 2 --nums 2 --dir $PWD/log --prefix server0.log --cache-addr 127.0.0.1:6379
 # 节点 2
-./bin/coral-server --port 9002 --cpui 4 --nums 2 --dir $PWD/log --prefix server1.log
+./bin/coral-server --port 9002 --cpui 4 --nums 2 --dir $PWD/log --prefix server1.log --cache-addr 127.0.0.1:6379
 
 # 添加open-telemetry collector
 # 节点 1
-./bin/coral-server --port 9001 --cpui 2 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9001 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin/coral-server --port 9001 --cpui 2 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9001 --otel-kvs threads=2 --otel-kvs version=0.1 --cache-addr 127.0.0.1:6379
 # 节点 2
-./bin-server --port 9002 --cpui 4 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9002 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin-server --port 9002 --cpui 4 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9002 --otel-kvs threads=2 --otel-kvs version=0.1 --cache-addr 127.0.0.1:6379
 
 # 添加日志文件和opemetry collector
-./bin/coral-server --port 9001 --cpui 2 --nums 2 --dir $PWD/log --prefix server0.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9001 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin/coral-server --port 9001 --cpui 2 --nums 2 --dir $PWD/log --prefix server0.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9001 --otel-kvs threads=2 --otel-kvs version=0.1 --cache-addr 127.0.0.1:6379
 # 节点 2
-./bin-server --port 9002 --cpui 4 --nums 2 --dir $PWD/log --prefix server1.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9002 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin-server --port 9002 --cpui 4 --nums 2 --dir $PWD/log --prefix server1.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9002 --otel-kvs threads=2 --otel-kvs version=0.1 --cache-addr 127.0.0.1:6379
 ```
 
 ## coral-proxy
@@ -81,13 +81,13 @@ Options:
 ./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379  --cpui 0 --nums 2
 
 # 日志输出至文件
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log
+./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log
 
 # 添加open-telemetry collector
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cpui 0 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
 
 # 添加日志文件和open-telemetry collector
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000  --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
 ```
 
 ## curl test

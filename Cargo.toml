@@ -35,7 +35,7 @@ hyper = { version = "1.4.0", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["full"] }
 local-ip-address = "0.6"
-log = { version = "0.4", features = ["std","kv", "kv_unstable"] }
+log = { version = "0.4", features = ["std","kv", "kv_unstable", "kv_std"] }
 num_cpus = "1.16"
 prost = "0.13"
 prost-types = "0.13"

@@ -17,12 +17,10 @@ async fn heartbeat() -> hyper::Response<axum::body::Body> {
 }
 
 async fn test_hand(req: Request) -> &'static str {
-    println!("headers: {:?}", req.headers());
     let (_, body) = req.into_parts();
     let c = body.collect().await.unwrap().to_bytes();
     let d = c.as_ref();
-    let f = std::str::from_utf8(d).unwrap();
-    println!("data {:?}", f);
+    let _f = std::str::from_utf8(d).unwrap();
     "ok!"
 }
 

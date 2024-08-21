@@ -12,8 +12,10 @@ axum = { workspace = true, features = ["http2", "tokio"] }
 axum-server.workspace = true
 clap.workspace = true
 coral-log.workspace = true
+coral-macro.workspace = true
 coral-runtime.workspace = true
 coral-util.workspace = true
+fastrace = { workspace = true, features = ["enable"] }
 futures.workspace = true
 hyper = { workspace = true, features = ["client", "http2", "server"] }
 hyper-util = { workspace = true, features = ["default"] }

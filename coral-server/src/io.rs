@@ -13,6 +13,17 @@ use crate::cli;
 use crate::error::CoralRes;
 use crate::hand;
 
+fn check_ends_repeat(endpoints: &Vec<&[u8]>, local: &[u8]) -> bool {
+    let mut repeated = false;
+    for p in endpoints.iter() {
+        if **p == *local {
+            repeated = true;
+            break;
+        }
+    }
+    repeated
+}
+
 async fn notify(args: &cli::Cli) -> CoralRes<()> {
     if let Some(addr) = args.comm_param.cache_addr.as_ref() {
         let mut client = coral_util::db::cache::MiniRedis::new(addr).await?;
@@ -20,7 +31,9 @@ async fn notify(args: &cli::Cli) -> CoralRes<()> {
         let endpoints = match client.get(coral_util::consts::REDIS_KEY_DISCOVER).await? {
             Some(data) => {
                 let mut ends = data.split(|k| *k == 44).collect::<Vec<&[u8]>>();
-                ends.push(local.as_bytes());
+                if !check_ends_repeat(&ends, local.as_bytes()) {
+                    ends.push(local.as_bytes());
+                }
                 bytes::Bytes::from(ends.join(&44))
             }
             None => bytes::Bytes::from(local),
@@ -45,8 +58,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
     loop {
         let socket = listen.accept().await;
         if let Err(err) = socket {
-            let e_str = err.to_string();
-            error!(e = e_str.as_str(); "listen accept error");
+            error!(e = err.to_string(); "listen accept error");
             continue;
         }
         let (stream, _) = socket.unwrap();
@@ -57,8 +69,7 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
             .serve_connection(io, handle)
             .await
         {
-            let e_str = err.to_string();
-            error!(e = e_str.as_str(); "http2 builder failed");
+            error!(e = err.to_string(); "http2 builder failed");
         }
     }
 }
@@ -67,8 +78,7 @@ pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
     let rt = coral_runtime::runtime(&args.runtime_param, "coral-server")?;
     if let Err(err) = rt.block_on(server(args)) {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "block on server error");
+        error!(e = err.to_string(); "block on server error");
     }
     Ok(())
 }

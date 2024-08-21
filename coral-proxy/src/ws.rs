@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::net::SocketAddr;
 
 use axum::body::Body;
@@ -39,7 +40,7 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>, addr: SocketAddr) {
                         if let Err(e) = outgoing.send(msg).await {}
                         if let Err(e) = outgoing.flush().await {}
                     }
-                    Err(e) => println!("====== {:?}", e),
+                    Err(err) => error!(e = err.to_string(); "failed to receive websocket mes"),
                 }
             }
             // incoming
@@ -49,15 +50,13 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>, addr: SocketAddr) {
             // incoming.forward(outgoing).await.unwrap();
         }
         Err(err) => {
-            let e_str = err.to_string();
-            error!(e = e_str.as_str(); "fail to upgrade in websocket stream");
+            error!(e = err.to_string(); "fail to upgrade in websocket stream");
         }
     }
 }
 
 // pub fn websocket_hand(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
 pub async fn websocket_upgrade_hand(req: Request) -> CoralRes<Response<Body>> {
-    println!("############");
     let key = req
         .headers()
         .get(SEC_WEBSOCKET_KEY)
@@ -76,6 +75,5 @@ pub async fn websocket_upgrade_hand(req: Request) -> CoralRes<Response<Body>> {
         HeaderValue::from_static(coral_util::consts::HTTP_HEADER_WEBSOCKET_UPGRADE),
     );
     res.headers_mut().append(SEC_WEBSOCKET_ACCEPT, derived_hv);
-    println!("--------++++{:?}", res.headers());
     Ok(res)
 }

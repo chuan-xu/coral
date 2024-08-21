@@ -24,8 +24,7 @@ impl MiniRedis {
         match mini_redis::Client::connect(addr).await {
             Ok(client) => Ok(Self { inner: client }),
             Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "failed to connect mini redis");
+                error!(e = err.to_string(); "failed to connect mini redis");
                 Err(Error::CacheCreateErr)
             }
         }
@@ -35,8 +34,7 @@ impl MiniRedis {
         match self.inner.get(key).await {
             Ok(val) => Ok(val),
             Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "");
+                error!(e = err.to_string(); "failed to get mini redis value");
                 Err(Error::CacheGetErr)
             }
         }
@@ -46,8 +44,7 @@ impl MiniRedis {
         match self.inner.set(key, value).await {
             Ok(_) => Ok(()),
             Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "failed to set mini redis value");
+                error!(e = err.to_string(); "failed to set mini redis value");
                 Err(Error::CacheSetErr)
             }
         }
@@ -57,8 +54,7 @@ impl MiniRedis {
         match self.inner.publish(channel, data).await {
             Ok(_) => Ok(()),
             Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "failed to publish by mini redis client");
+                error!(e = err.to_string(); "failed to publish by mini redis client");
                 Err(Error::CachePublishErr)
             }
         }
@@ -79,23 +75,20 @@ pub async fn discover<F, Fut, P, S>(
 {
     let client = mini_redis::Client::connect(&addr).await;
     if let Err(err) = client {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "failed to mini_redis client connect");
+        error!(e = err.to_string(); "failed to mini_redis client connect");
         state.store(1, Ordering::Release);
         return;
     }
     let mut client = client.unwrap();
     let subscriber = mini_redis::Client::connect(&addr).await;
     if let Err(err) = subscriber {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "failed to mini_redis client connect");
+        error!(e = err.to_string(); "failed to mini_redis client connect");
         state.store(1, Ordering::Release);
         return;
     }
     let subscriber = subscriber.unwrap().subscribe(channels).await;
     if let Err(err) = subscriber {
-        let e_str = err.to_string();
-        error!(e = e_str.as_str(); "failed to mini_redis client subscribe");
+        error!(e = err.to_string(); "failed to mini_redis client subscribe");
         state.store(1, Ordering::Release);
         return;
     }
@@ -119,15 +112,13 @@ pub async fn discover<F, Fut, P, S>(
                             }
                         }
                         Err(err) => {
-                            let e_str = err.to_string();
-                            error!(e = e_str.as_str(); "failed to get {}", REDIS_KEY_DISCOVER);
+                            error!(e = err.to_string(); "failed to get {}", REDIS_KEY_DISCOVER);
                         }
                     }
                 }
             }
             Err(err) => {
-                let e_str = err.to_string();
-                error!(e = e_str.as_str(); "failed to subscribe get next_message");
+                error!(e = err.to_string(); "failed to subscribe get next_message");
             }
         }
     }
