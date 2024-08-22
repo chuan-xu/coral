@@ -40,7 +40,7 @@ num_cpus = "1.16"
 prost = "0.13"
 prost-types = "0.13"
 regex = "1.10"
-rustls = "0.23"
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12"] }
 rustls-pemfile = "2.1"
 thiserror = "1.0"
 tokio = { version = "1.0", features = ["full"] }

@@ -114,7 +114,7 @@ impl PxyConn {
 
     async fn keep_conn(conn: HandshakeConn, addr: String) {
         if let Err(err) = conn.await {
-            error!(e = err.to_string(), addr = addr.as_str(); "Proxy disconnect");
+            trace_error!(e = err.to_string(), addr = addr.as_str(); "Proxy disconnect");
         }
     }
 
@@ -141,7 +141,7 @@ impl PxyConn {
                     Ordering::SeqCst,
                     Ordering::Acquire,
                 ) {
-                    error!(
+                    trace_error!(
                         state = e;
                         "failed to compare exchange PROXY_CLEANING to PROXY_CLEANED"
                     );
@@ -235,7 +235,7 @@ impl ConnPool {
                     Ordering::SeqCst,
                     Ordering::Acquire,
                 ) {
-                    error!(
+                    trace_error!(
                         state = e;
                         "failed to compare exchange PROXY_CLOSED to PROXY_CLEANING"
                     );
@@ -321,7 +321,7 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
         .extensions()
         .get::<PathAndQuery>()
         .ok_or_else(|| {
-            error!("PathAndQuery is none");
+            trace_error!("PathAndQuery is none");
             Error::NoneOption("PathAndQuery ")
         })?
         .clone();
@@ -329,7 +329,7 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
         .extensions()
         .get::<ConnPool>()
         .ok_or_else(|| {
-            error!("PxyPool is none");
+            trace_error!("PxyPool is none");
             Error::NoneOption("PxyPool")
         })?
         .clone();
@@ -337,18 +337,18 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
     let body = req.into_body().into_data_stream();
     let mut trans_builder = hyper::Request::builder().method("POST").uri(uri);
     let trans_headers = trans_builder.headers_mut().ok_or_else(|| {
-        error!("faile to get trans header");
+        trace_error!("faile to get trans header");
         Error::NoneOption("trans header")
     })?;
     *trans_headers = headers;
     add_header_span_id(trans_headers);
 
     let trans_req = trans_builder.body(body).map_err(|err| {
-        error!(e = err.to_string(); "failed to build trans body");
+        trace_error!(e = err.to_string(); "failed to build trans body");
         err
     })?;
     let pxy_conn = pool.balance().await.ok_or_else(|| {
-        error!("pxy_conn get balance is none");
+        trace_error!("pxy_conn get balance is none");
         Error::NoneOption("pxy_conn")
     })?;
     let (mut sender, _guard) = pxy_conn.get_sender();
