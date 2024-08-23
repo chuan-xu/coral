@@ -78,22 +78,22 @@ Options:
 
 ```bash
 # 日志输出至控制台
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379  --cpui 0 --nums 2
+./bin/coral-proxy --ca-dir $PWD/cicd/self_sign_cert/ca --certificate $PWD/cicd/self_sign_cert/server.crt --private-key $PWD/cicd/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379  --cpui 0 --nums 2
 
 # 日志输出至文件
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log
+./bin/coral-proxy --ca-dir $PWD/cicd/self_sign_cert/ca --certificate $PWD/cicd/self_sign_cert/server.crt --private-key $PWD/cicd/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log
 
 # 添加open-telemetry collector
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin/coral-proxy --ca-dir $PWD/cicd/self_sign_cert/ca --certificate $PWD/cicd/self_sign_cert/server.crt --private-key $PWD/cicd/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
 
 # 添加日志文件和open-telemetry collector
-./bin/coral-proxy --ca-dir $PWD/tests/self_sign_cert/ca --certificate $PWD/tests/self_sign_cert/server.crt --private-key $PWD/tests/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
+./bin/coral-proxy --ca-dir $PWD/cicd/self_sign_cert/ca --certificate $PWD/cicd/self_sign_cert/server.crt --private-key $PWD/cicd/self_sign_cert/server.key --port 9000 --cache-addr 127.0.0.1:6379 --cpui 0 --nums 2 --dir $PWD/log --prefix proxy.log --otel-endpoint http://172.17.0.1:4317 --otel-kvs service.name=coral --otel-kvs port=9000 --otel-kvs threads=2 --otel-kvs version=0.1
 ```
 
 ## curl test
 
 ```bash
-curl -X POST --cacert ./tests/self_sign_cert/server.crt --cert ./tests/self_sign_cert/client.crt --key ./tests/self_sign_cert/client.key https://server.test.com:9000/benchmark
+curl -X POST --cacert ./cicd/self_sign_cert/server.crt --cert ./cicd/self_sign_cert/client.crt --key ./cicd/self_sign_cert/client.key https://server.test.com:9000/benchmark
 
 # with header
 curl -X POST -H "X-Trace-Id: DCA4DCB7-79C6-FDC4-F262-EDD742F906FA" --cacert /root/certs/server.crt --cert /root/certs/client.crt --key /root/certs/client.key https://server.test.com:9000/benchmark

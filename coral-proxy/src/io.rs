@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::Request;
@@ -25,7 +26,6 @@ use crate::http::http_reset;
 use crate::http::set_discover;
 use crate::http::ConnPool;
 use crate::http::{self};
-use crate::tls;
 use crate::util;
 use crate::util::WS_RESET_URI;
 use crate::ws;
@@ -93,8 +93,8 @@ async fn hand_stream(
 
 async fn server(args: cli::Cli) -> CoralRes<()> {
     args.log_param.set_traces();
-    let conf = tls::server_conf(&args)?;
-    let tls_acceptor = tokio_rustls::TlsAcceptor::from(conf);
+    let conf = coral_util::tls::server_conf(&args.comm_param)?;
+    let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(conf));
     let bind = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
     let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
     let app = Router::new()

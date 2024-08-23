@@ -15,9 +15,12 @@ coral-macro.workspace = true
 fastrace = { workspace = true, features = ["enable"] }
 log = { workspace = true }
 thiserror.workspace= true
+rustls = { workspace = true, default-features = false, features = ["std", "ring", "tls12"] }
+rustls-pemfile.workspace = true
 tokio= { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["full"] }
 uuid.workspace = true 
+webpki-roots.workspace = true
 
 mini-redis = { git = "https://github.com/tokio-rs/mini-redis.git", recv = "e186482ca00f8d884ddcbe20417f3654d03315a4" }
 

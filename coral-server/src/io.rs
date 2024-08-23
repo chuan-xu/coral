@@ -49,7 +49,7 @@ async fn notify(args: &cli::Cli) -> CoralRes<()> {
     Ok(())
 }
 
-async fn server(args: cli::Cli) -> CoralRes<()> {
+async fn server_http2(args: cli::Cli) -> CoralRes<()> {
     args.log_param.set_traces();
     notify(&args).await?;
     let app = hand::app();
@@ -61,24 +61,27 @@ async fn server(args: cli::Cli) -> CoralRes<()> {
             error!(e = err.to_string(); "listen accept error");
             continue;
         }
-        let (stream, _) = socket.unwrap();
         let tower_serv = app.clone();
-        let handle = service_fn(move |request: Request<Incoming>| tower_serv.clone().call(request));
-        let io = TokioIo::new(stream);
-        if let Err(err) = hyper::server::conn::http2::Builder::new(TokioExecutor::new())
-            .serve_connection(io, handle)
-            .await
-        {
-            error!(e = err.to_string(); "http2 builder failed");
-        }
+        tokio::spawn(async move {
+            let (stream, _) = socket.unwrap();
+            let handle =
+                service_fn(move |request: Request<Incoming>| tower_serv.clone().call(request));
+            let io = TokioIo::new(stream);
+            if let Err(err) = hyper::server::conn::http2::Builder::new(TokioExecutor::new())
+                .serve_connection(io, handle)
+                .await
+            {
+                error!(e = err.to_string(); "http2 builder failed");
+            }
+        });
     }
 }
 
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
     let rt = coral_runtime::runtime(&args.runtime_param, "coral-server")?;
-    if let Err(err) = rt.block_on(server(args)) {
-        error!(e = err.to_string(); "block on server error");
+    if let Err(err) = rt.block_on(server_http2(args)) {
+        error!(e = err.to_string(); "block on server http2 error");
     }
     Ok(())
 }

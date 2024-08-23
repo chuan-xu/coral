@@ -1,3 +1,5 @@
+use quinn::crypto::rustls::NoInitialCipherSuite;
+use rustls::pki_types::InvalidDnsNameError;
 use rustls::server::VerifierBuilderError;
 use thiserror::Error;
 
@@ -31,4 +33,25 @@ pub enum Error {
 
     #[error("failed to set by cacher")]
     CacheSetErr,
+
+    #[error("invalid dns name")]
+    InvalidDnsNameError(#[from] InvalidDnsNameError),
+
+    #[error("hyper inner error")]
+    HyperInner(#[from] hyper::Error),
+
+    #[error("quic client config from tls_cfg")]
+    QuicCfgErr(#[from] NoInitialCipherSuite),
+
+    #[error("parse addr from str")]
+    AddrParseError(#[from] std::net::AddrParseError),
+
+    #[error("quinn proto connect error")]
+    ConnectError(#[from] quinn_proto::ConnectError),
+
+    #[error("quinn proto connect error")]
+    ConnectError1(#[from] quinn_proto::ConnectionError),
+
+    #[error("h3 error")]
+    H3Err(#[from] h3::error::Error),
 }

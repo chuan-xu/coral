@@ -10,3 +10,6 @@ fn main() -> CoralRes<()> {
     io::run()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod test {}
