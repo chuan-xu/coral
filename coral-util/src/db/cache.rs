@@ -20,7 +20,9 @@ pub struct MiniRedis {
 
 impl MiniRedis {
     pub async fn new<T>(addr: T) -> CoralRes<Self>
-    where T: ToSocketAddrs {
+    where
+        T: ToSocketAddrs,
+    {
         match mini_redis::Client::connect(addr).await {
             Ok(client) => Ok(Self { inner: client }),
             Err(err) => {

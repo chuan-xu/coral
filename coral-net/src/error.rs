@@ -16,23 +16,23 @@ pub enum Error {
     #[error("failed to build ca certificate")]
     CaBuildErr(#[from] VerifierBuilderError),
 
-    #[error("failed to create cache client")]
-    CacheCreateErr,
+    #[error("failed to connect discover service")]
+    DiscoverConnErr,
 
     #[error("failed to build tls conf")]
     TlsCfgErr(#[from] rustls::Error),
 
-    #[error("failed to create cache subscriber")]
-    CacheSubscribeErr,
+    #[error("failed to create subscriber from discover service")]
+    DiscoverSubscribeErr,
 
-    #[error("failed to publish by cacher")]
-    CachePublishErr,
+    #[error("failed to publish to discover service")]
+    DiscoverPublishErr,
 
-    #[error("failed to get by cacher")]
-    CacheGetErr,
+    #[error("failed to get from discover service")]
+    DiscoverGetErr,
 
-    #[error("failed to set by cacher")]
-    CacheSetErr,
+    #[error("failed to set to discover service")]
+    DiscoverSetErr,
 
     #[error("invalid dns name")]
     InvalidDnsNameError(#[from] InvalidDnsNameError),
