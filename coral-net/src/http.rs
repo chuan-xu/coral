@@ -44,9 +44,16 @@ where
     Ok(())
 }
 
-// trait  {
+#[async_trait::async_trait]
+trait HttpSend {
+    type Sender;
 
-// }
+    fn get_sender(&self) -> Self::Sender;
+
+    async fn keep() {}
+
+    async fn heartbeat() {}
+}
 
 /// http2 or http3  handle of send data
 pub struct HttpSendHandle<T> {
