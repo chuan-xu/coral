@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use clap::Args;
 use coral_runtime::tokio::net::ToSocketAddrs;
-use log::error;
+use log::{error, info, warn};
 
 use crate::{
     error::{CoralRes, Error},
@@ -13,32 +13,81 @@ static REDIS_KEY_NOTIFY: &'static str = "svc_update";
 
 static REDIS_KEY_DISCOVER: &'static str = "svc_endpoints";
 
+/// 127.0.0.1:9001,127.0.0.1:9002
+static ENDPOINTS_SPLIT_TAG: u8 = 44;
+
 #[derive(Args, Debug)]
 pub struct DiscoverParam {
     #[arg(long, help = "the uri of discover service")]
     discover_uri: Option<String>,
 }
 
-pub trait Discover {
-    type pool;
-
-    fn discover(&mut self);
+#[async_trait::async_trait]
+pub trait Discover<F, P>
+where
+    F: Fn(Vec<String>, P) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+        + Send
+        + 'static,
+    P: Clone + Send + 'static,
+{
+    async fn discover(&mut self, f: F, param: P);
 }
 
 /// temporary solution
-pub struct MiniRedis<T> {
+pub struct MiniRedis {
     client: mini_redis::Client,
     subscriber: Option<mini_redis::clients::Subscriber>,
-    _pd: PhantomData<Arc<T>>,
 }
 
-impl<T> Discover for MiniRedis<T> {
-    type pool = HttpSendPool<T>;
-
-    fn discover(&mut self) {}
+#[async_trait::async_trait]
+impl<F, P> Discover<F, P> for MiniRedis
+where
+    F: Fn(Vec<String>, P) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+        + Send
+        + 'static,
+    P: Clone + Send + 'static,
+{
+    async fn discover(&mut self, f: F, param: P) {
+        if self.subscriber.is_none() {
+            return;
+        }
+        loop {
+            match self.get(REDIS_KEY_DISCOVER).await {
+                Ok(Some(val)) => {
+                    let endpoints: Vec<String> = val
+                        .split(|x| *x == ENDPOINTS_SPLIT_TAG)
+                        .filter_map(|x| std::str::from_utf8(x).ok())
+                        .map(|x| x.to_owned())
+                        .collect();
+                    if !endpoints.is_empty() {
+                        f(endpoints, param.clone()).await;
+                    }
+                }
+                Ok(None) => {
+                    warn!("{} is empty", REDIS_KEY_DISCOVER);
+                }
+                Err(err) => {
+                    error!(e = err.to_string(); "failed to get {}", REDIS_KEY_DISCOVER);
+                }
+            }
+            if let Some(subscriber) = self.subscriber.as_mut() {
+                match subscriber.next_message().await {
+                    Ok(Some(_)) => {
+                        info!("subscriber receive message");
+                    }
+                    Ok(None) => {
+                        warn!("subscriber message is empty");
+                    }
+                    Err(err) => {
+                        error!(e = err.to_string(); "failed to subscriber get next message");
+                    }
+                }
+            }
+        }
+    }
 }
 
-impl<T> MiniRedis<T> {
+impl MiniRedis {
     pub async fn new<A>(addr: A) -> CoralRes<Self>
     where
         A: ToSocketAddrs,
@@ -47,7 +96,6 @@ impl<T> MiniRedis<T> {
             Ok(client) => Ok(Self {
                 client,
                 subscriber: None,
-                _pd: PhantomData,
             }),
             Err(err) => {
                 error!(e = err.to_string(); "failed to connect mini redis");

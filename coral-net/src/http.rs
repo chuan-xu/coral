@@ -11,11 +11,14 @@ use coral_runtime::tokio::net::ToSocketAddrs;
 use coral_runtime::tokio::{self};
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
+use log::error;
 use rustls::pki_types;
 use rustls::ClientConfig;
 use tokio_rustls::client::TlsStream;
 
+use crate::discover::Discover;
 use crate::error::CoralRes;
+use crate::error::Error;
 
 /// client is normal
 static NORMAL: u8 = 0;
@@ -40,7 +43,7 @@ type HandshakeConn = hyper::client::conn::http2::Connection<
 >;
 type HandshakeSocket = (HandshakeSend, HandshakeConn);
 
-async fn http2_clien<A, D>(addr: A, tls_cfg: ClientConfig, domain: D) -> CoralRes<()>
+async fn http2_clien<A, D>(addr: A, tls_cfg: ClientConfig, domain: D) -> CoralRes<HandshakeSend>
 where
     A: ToSocketAddrs,
     D: TryInto<pki_types::ServerName<'static>, Error = pki_types::InvalidDnsNameError>,
@@ -53,7 +56,51 @@ where
         .handshake(TokioIo::new(tls_stream))
         .await
         .unwrap();
-    Ok(())
+    let (send, conn) = socket;
+    tokio::spawn(async move {
+        if let Err(err) = conn.await {
+            error!(e = err.to_string(); "http2 client disconnect");
+        }
+    });
+    Ok(send)
+}
+
+#[derive(Default)]
+pub struct Http2Handle(Option<HandshakeSend>);
+
+#[async_trait::async_trait]
+impl HttpSend for Http2Handle {
+    type Sender = HandshakeSend;
+
+    async fn init(&mut self, addr: &str, tls_cfg: ClientConfig) -> CoralRes<()> {
+        let (domain, _) = addr.rsplit_once(":").unwrap();
+        let send = http2_clien(addr, tls_cfg, domain.to_owned()).await?;
+        self.0 = Some(send);
+        Ok(())
+    }
+
+    fn is_closed(&self) -> bool {
+        if let Some(this) = self.0.as_ref() {
+            return this.is_closed();
+        }
+        true
+    }
+
+    async fn heartbeat(&self) -> CoralRes<()> {
+        let body = axum::body::Body::empty().into_data_stream();
+        let req = hyper::Request::builder()
+            .method("POST")
+            .uri("/heartbeat")
+            .body(body)?;
+        if let Some(sender) = self.0.as_ref() {
+            let res = sender.clone().send_request(req).await?;
+            if res.status() != hyper::StatusCode::OK {
+                return Err(Error::HeartBeatFailed);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 async fn http3_client<A>(
@@ -74,13 +121,11 @@ async fn http3_client<A>(
 trait HttpSend {
     type Sender;
 
-    fn get_sender(&self) -> Self::Sender;
+    async fn init(&mut self, addr: &str, tls_cfg: ClientConfig) -> CoralRes<()>;
 
     fn is_closed(&self) -> bool;
 
-    async fn keep() {}
-
-    async fn heartbeat() {}
+    async fn heartbeat(&self) -> CoralRes<()>;
 }
 
 /// http2 or http3  handle of send data
@@ -90,6 +135,8 @@ pub struct HttpSendHandle<T> {
     state: Arc<AtomicU8>,
 
     count: Arc<AtomicU32>,
+
+    addr: Arc<String>,
 }
 
 impl<T> Clone for HttpSendHandle<T> {
@@ -98,15 +145,39 @@ impl<T> Clone for HttpSendHandle<T> {
             sender: self.sender.clone(),
             state: self.state.clone(),
             count: self.count.clone(),
+            addr: self.addr.clone(),
         }
+    }
+}
+
+struct SenderGuard(Arc<AtomicU32>);
+
+impl Drop for SenderGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
 impl<T> HttpSendHandle<T>
 where
-    T: HttpSend,
+    T: HttpSend + Default,
 {
-    fn new() {}
+    async fn new(addr: &str, tls_cfg: ClientConfig) -> CoralRes<Self> {
+        let mut t = T::default();
+        t.init(addr, tls_cfg).await?;
+        Ok(Self {
+            sender: Arc::new(t),
+            state: Arc::new(AtomicU8::default()),
+            count: Arc::new(AtomicU32::default()),
+            addr: Arc::new(addr.to_owned()),
+        })
+    }
+
+    fn get_sender(&self) -> (Arc<T>, SenderGuard) {
+        self.count.fetch_add(1, Ordering::AcqRel);
+
+        (self.sender.clone(), SenderGuard(self.count.clone()))
+    }
 
     fn check(&self) -> (bool, u32) {
         let is_closed = self.sender.is_closed();
@@ -153,24 +224,30 @@ where
         };
         (remove, count)
     }
+
+    fn is_repeat(&self, addr: &str) -> bool {
+        self.state.load(Ordering::Acquire) == NORMAL && *self.addr == addr
+    }
 }
 
-#[derive(Default)]
+// #[derive(Default)]
 pub struct HttpSendPool<T> {
     inner: Arc<tokio::sync::RwLock<Vec<HttpSendHandle<T>>>>,
+    tls_cfg: Arc<ClientConfig>,
 }
 
 impl<T> Clone for HttpSendPool<T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            tls_cfg: self.tls_cfg.clone(),
         }
     }
 }
 
 impl<T> HttpSendPool<T>
 where
-    T: HttpSend + Send + Sync + 'static,
+    T: HttpSend + Default + Send + Sync + 'static,
 {
     async fn remove(self) {
         let mut pool = self.inner.write().await;
@@ -192,4 +269,34 @@ where
         }
         handle
     }
+
+    async fn add(&mut self, addr: &str) {
+        let cfg = (*self.tls_cfg).clone();
+        match HttpSendHandle::<T>::new(addr, cfg).await {
+            Ok(h) => {
+                let mut pool = self.inner.write().await;
+                if !pool.iter().any(|x| x.is_repeat(addr)) {
+                    pool.push(h);
+                }
+            }
+            Err(err) => {
+                error!(e = err.to_string(); "failed to new http send handle");
+            }
+        }
+    }
+}
+
+pub fn http_endpoints_discover<T>(
+    addr: Vec<String>,
+    mut pool: HttpSendPool<T>,
+) -> std::pin::Pin<Box<impl std::future::Future<Output = ()>>>
+where
+    T: HttpSend + Default + Send + Sync + 'static,
+{
+    let fut = async move {
+        for i in addr.iter() {
+            pool.add(i).await;
+        }
+    };
+    Box::pin(fut)
 }

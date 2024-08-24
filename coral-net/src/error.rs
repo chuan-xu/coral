@@ -54,4 +54,10 @@ pub enum Error {
 
     #[error("h3 error")]
     H3Err(#[from] h3::error::Error),
+
+    #[error("heartbeat failed")]
+    HeartBeatFailed,
+
+    #[error("hyper http inner error")]
+    HttpInner(#[from] hyper::http::Error),
 }
