@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::routing::post;
@@ -28,9 +29,18 @@ fn run_router() -> Router {
 // type h3_recv<T> = RequestStream<<T as BidiStream<Bytes>>::RecvStream, Bytes>;
 type h3_recv<T> = RequestStream<T, Bytes>;
 
-struct Recv<T> {
-    inner: h3_recv<T>,
+pin_project_lite::pin_project! {
+    struct Recv<T> {
+        #[pin]
+        inner: h3_recv<T>,
+
+        // #[pin]
+        data: Option<Box<dyn Buf>>,
+    }
 }
+
+unsafe impl<T> Send for Recv<T> {}
+unsafe impl<T> Sync for Recv<T> {}
 
 impl<T> hyper::body::Body for Recv<T>
 where
@@ -46,17 +56,24 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
         // TODO use ready
-        // match self.inner.poll_recv_data(cx) {
-        //     std::task::Poll::Ready(_) => todo!(),
-        //     std::task::Poll::Pending => return std::task::Poll::Pending,
-        // }
+        let this = self.project();
+        let mut inner = this.inner;
+        let mut r_data = this.data;
+        let res = futures::ready!(inner.poll_recv_data(cx)).unwrap();
+        let d = res.unwrap();
+        // must conver to Bytes
+        // let d_pre = d.chunk();
+        // let b = bytes::Bytes::from(d_pre);
+
         todo!()
+        // if option return option
+        // std::task::Poll::Ready(Some(Ok(t)))
     }
 }
 
 async fn handle_request<T>(mut req: Request<()>, mut stream: RequestStream<T, Bytes>)
 where
-    T: BidiStream<Bytes>,
+    T: BidiStream<Bytes> + 'static,
 {
     println!("method: {:?}", req.method());
     println!("header: {:?}", req.headers());
@@ -70,17 +87,21 @@ where
 
     // test split
     let (mut send, mut recv) = stream.split();
-    while let Some(data) = recv.recv_data().await.unwrap() {
-        let cont = std::str::from_utf8(data.chunk()).unwrap();
-        println!("{:?}", cont);
-    }
+    // while let Some(data) = recv.recv_data().await.unwrap() {
+    //     let cont = std::str::from_utf8(data.chunk()).unwrap();
+    //     println!("{:?}", cont);
+    // }
 
     // merge router
 
     // let router: Router = Router::new().route("/hand", post(hand));
-    // let req2 = hyper::Request::builder().body(recv).unwrap();
-    // let mut r = run_router();
-    // let fut = r.call(req2);
+    let rre = Recv {
+        inner: recv,
+        data: None,
+    };
+    let r_req = Request::builder().body(rre).unwrap();
+    let mut r = run_router();
+    let fut = r.call(r_req);
 
     // recv.c
 

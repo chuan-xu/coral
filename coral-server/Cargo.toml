@@ -13,6 +13,7 @@ clap.workspace = true
 coral-log.workspace = true
 coral-runtime.workspace = true
 coral-util.workspace = true
+futures.workspace = true
 h3.workspace = true
 h3-quinn.workspace = true
 hyper = { workspace = true, features = ["full"] }
@@ -21,6 +22,7 @@ http-body.workspace = true
 http-body-util.workspace = true
 local-ip-address.workspace = true
 log = { workspace = true }
+pin-project-lite.workspace = true
 quinn = { workspace = true, default-features = false, features = ["platform-verifier", "ring", "runtime-tokio", "rustls"]}
 quinn-proto = { workspace = true, default-features =  false, features = ["rustls", "ring"]}
 thiserror.workspace = true
