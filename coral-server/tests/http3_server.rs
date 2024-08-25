@@ -3,31 +3,97 @@ use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 use std::sync::Arc;
 
+use axum::routing::post;
+use axum::Router;
 use bytes::Buf;
 use bytes::Bytes;
 use coral_runtime::tokio;
 use coral_util::tls::server_conf;
 use h3::quic::BidiStream;
+use h3::quic::RecvStream;
 use h3::server::RequestStream;
 use hyper::Request;
+use tower::Service;
+use tower::ServiceExt;
 
-async fn handle_request<T>(req: Request<()>, mut stream: RequestStream<T, Bytes>)
-where T: BidiStream<Bytes> {
+async fn hand() -> &'static str {
+    "hello"
+}
+
+fn run_router() -> Router {
+    let r: Router = Router::new().route("/hand", post(hand));
+    r
+}
+
+// type h3_recv<T> = RequestStream<<T as BidiStream<Bytes>>::RecvStream, Bytes>;
+type h3_recv<T> = RequestStream<T, Bytes>;
+
+struct Recv<T> {
+    inner: h3_recv<T>,
+}
+
+impl<T> hyper::body::Body for Recv<T>
+where
+    T: RecvStream,
+{
+    type Data = bytes::Bytes;
+
+    type Error = String;
+
+    // pin project
+    fn poll_frame(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        // TODO use ready
+        // match self.inner.poll_recv_data(cx) {
+        //     std::task::Poll::Ready(_) => todo!(),
+        //     std::task::Poll::Pending => return std::task::Poll::Pending,
+        // }
+        todo!()
+    }
+}
+
+async fn handle_request<T>(mut req: Request<()>, mut stream: RequestStream<T, Bytes>)
+where
+    T: BidiStream<Bytes>,
+{
     println!("method: {:?}", req.method());
     println!("header: {:?}", req.headers());
     println!("version: {:?}", req.version());
     println!("uri: {:?}", req.uri());
-    while let Some(data) = stream.recv_data().await.unwrap() {
+    // recv data
+    // while let Some(data) = stream.recv_data().await.unwrap() {
+    //     let cont = std::str::from_utf8(data.chunk()).unwrap();
+    //     println!("{:?}", cont);
+    // }
+
+    // test split
+    let (mut send, mut recv) = stream.split();
+    while let Some(data) = recv.recv_data().await.unwrap() {
         let cont = std::str::from_utf8(data.chunk()).unwrap();
         println!("{:?}", cont);
     }
+
+    // merge router
+
+    // let router: Router = Router::new().route("/hand", post(hand));
+    // let req2 = hyper::Request::builder().body(recv).unwrap();
+    // let mut r = run_router();
+    // let fut = r.call(req2);
+
+    // recv.c
+
     let resp = hyper::http::Response::builder().body(()).unwrap();
-    stream.send_response(resp).await.unwrap();
-    stream
-        .send_data(bytes::Bytes::from("hello from server"))
+    // recv data
+    // stream.send_response(resp).await.unwrap();
+
+    // test split
+    send.send_response(resp).await.unwrap();
+    send.send_data(bytes::Bytes::from("hello from server"))
         .await
         .unwrap();
-    stream.finish().await.unwrap();
+    send.finish().await.unwrap();
 }
 
 async fn server() {
