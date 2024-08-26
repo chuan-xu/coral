@@ -33,9 +33,6 @@ pin_project_lite::pin_project! {
     struct Recv<T> {
         #[pin]
         inner: h3_recv<T>,
-
-        // #[pin]
-        data: Option<Box<dyn Buf>>,
     }
 }
 
@@ -43,8 +40,7 @@ unsafe impl<T> Send for Recv<T> {}
 unsafe impl<T> Sync for Recv<T> {}
 
 impl<T> hyper::body::Body for Recv<T>
-where
-    T: RecvStream,
+where T: RecvStream
 {
     type Data = bytes::Bytes;
 
@@ -58,23 +54,21 @@ where
         // TODO use ready
         let this = self.project();
         let mut inner = this.inner;
-        let mut r_data = this.data;
         let res = futures::ready!(inner.poll_recv_data(cx)).unwrap();
         let d = res.unwrap();
+        let db = d.chunk().to_vec();
+
         // must conver to Bytes
         // let d_pre = d.chunk();
-        // let b = bytes::Bytes::from(d_pre);
+        let r_b = bytes::Bytes::from(db);
 
-        todo!()
-        // if option return option
-        // std::task::Poll::Ready(Some(Ok(t)))
+        let res = http_body::Frame::data(r_b);
+        std::task::Poll::Ready(Some(Ok(res)))
     }
 }
 
 async fn handle_request<T>(mut req: Request<()>, mut stream: RequestStream<T, Bytes>)
-where
-    T: BidiStream<Bytes> + 'static,
-{
+where T: BidiStream<Bytes> + 'static {
     println!("method: {:?}", req.method());
     println!("header: {:?}", req.headers());
     println!("version: {:?}", req.version());
@@ -95,10 +89,7 @@ where
     // merge router
 
     // let router: Router = Router::new().route("/hand", post(hand));
-    let rre = Recv {
-        inner: recv,
-        data: None,
-    };
+    let rre = Recv { inner: recv };
     let r_req = Request::builder().body(rre).unwrap();
     let mut r = run_router();
     let fut = r.call(r_req);

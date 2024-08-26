@@ -60,4 +60,7 @@ pub enum Error {
 
     #[error("hyper http inner error")]
     HttpInner(#[from] hyper::http::Error),
+
+    #[error("tokio sync oneshot recv err")]
+    OneshotRecv(#[from] coral_runtime::tokio::sync::oneshot::error::RecvError),
 }

@@ -704,18 +704,23 @@ dependencies = [
  "coral-macro",
  "coral-runtime",
  "fastrace",
+ "futures",
  "h3",
  "h3-quinn",
+ "http-body",
+ "http-body-util",
  "hyper",
  "hyper-util",
  "log",
  "mini-redis",
+ "pin-project-lite",
  "quinn",
  "quinn-proto",
  "rustls 0.23.12",
  "rustls-pemfile",
  "thiserror",
  "tokio-rustls 0.26.0",
+ "tower",
  "webpki-roots",
 ]
 
@@ -1315,8 +1320,7 @@ dependencies = [
 [[package]]
 name = "h3"
 version = "0.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e7675a0963b47a6d12fe44c279918b4ffb19baee838ac37f48d2722ad5bc6ab"
+source = "git+https://github.com/chuan-xu/coral-h3.git#17b9d55a38f1c3692509626e6c2d0a45864a4d08"
 dependencies = [
  "bytes",
  "fastrand 2.1.0",
@@ -1329,8 +1333,7 @@ dependencies = [
 [[package]]
 name = "h3-quinn"
 version = "0.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17c799f413fceeea505236c4d8132f084ff4b55a652288d91439ee93dc24d855"
+source = "git+https://github.com/chuan-xu/coral-h3.git#17b9d55a38f1c3692509626e6c2d0a45864a4d08"
 dependencies = [
  "bytes",
  "futures",
