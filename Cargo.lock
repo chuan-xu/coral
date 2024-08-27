@@ -720,6 +720,7 @@ dependencies = [
  "rustls-pemfile",
  "thiserror",
  "tokio-rustls 0.26.0",
+ "tokio-stream",
  "tower",
  "webpki-roots",
 ]
@@ -2984,6 +2985,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

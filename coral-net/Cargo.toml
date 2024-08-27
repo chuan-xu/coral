@@ -31,6 +31,7 @@ rustls = { workspace = true, default-features = false, features = ["std", "ring"
 rustls-pemfile.workspace = true
 thiserror.workspace = true
 tokio-rustls = { workspace = true, default-features = false, features = ["tls12", "ring"]}
+tokio-stream = { workspace = true, default-features = false, features = ["full"] }
 tower = { workspace = true, features = ["full"] }
 webpki-roots.workspace = true
 

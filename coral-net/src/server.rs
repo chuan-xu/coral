@@ -1,4 +1,6 @@
 use std::io::Write;
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -15,6 +17,7 @@ use h3::quic::BidiStream;
 use h3::quic::RecvStream;
 use h3::server::RequestStream;
 use http_body_util::BodyExt;
+use http_body_util::BodyStream;
 use hyper::header::CONTENT_LENGTH;
 use hyper::HeaderMap;
 use hyper_util::rt::TokioExecutor;
@@ -22,14 +25,15 @@ use hyper_util::rt::TokioIo;
 use log::error;
 use rustls::ServerConfig;
 use tokio_rustls::TlsAcceptor;
+use tokio_stream::StreamExt;
 use tower::Service;
 
 use crate::error::CoralRes;
 use crate::tls::server_conf;
 
 #[async_trait::async_trait]
-trait HttpServ {
-    async fn run(self) -> CoralRes<()>;
+pub trait HttpServ {
+    async fn run(self, router: axum::Router) -> CoralRes<()>;
 }
 
 #[derive(Default)]
@@ -57,7 +61,7 @@ impl Inject {
     }
 }
 
-struct H1_2<A> {
+pub struct H1_2<A> {
     tls: ServerConfig,
     addr: A,
 }
@@ -98,7 +102,7 @@ where A: ToSocketAddrs + Clone
 impl<A> HttpServ for H1_2<A>
 where A: ToSocketAddrs + Clone + Send + Sync + 'static
 {
-    async fn run(self) -> CoralRes<()> {
+    async fn run(self, router: axum::Router) -> CoralRes<()> {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
         let tls_acceptor = TlsAcceptor::from(Arc::new(self.tls));
         loop {
@@ -107,6 +111,7 @@ where A: ToSocketAddrs + Clone + Send + Sync + 'static
                     let acceptor = tls_acceptor.clone();
                     let mut inject = Inject::default();
                     inject.set_peer_addr(peer_addr);
+                    inject.set_router(router.clone());
                     let fut = Self::bind(acceptor, stream, inject);
                     tokio::spawn(fut);
                 }
@@ -122,9 +127,9 @@ pin_project_lite::pin_project! {
         #[pin]
         inner: RequestStream<T, Bytes>,
 
-        length: usize,
-        rsize: usize,
-        trailers_tx: Option<tokio::sync::oneshot::Sender<Option<HeaderMap>>>
+        // length: usize,
+        // rsize: usize,
+        // trailers_tx: Option<tokio::sync::oneshot::Sender<Option<HeaderMap>>>
     }
 }
 
@@ -149,15 +154,22 @@ where T: RecvStream
             Some(buf) => {
                 // FIXME: memory usage!
                 let chunk = buf.chunk();
-                *this.rsize += chunk.len();
+                // *this.rsize += chunk.len();
                 let frame = http_body::Frame::data(Bytes::copy_from_slice(chunk));
                 std::task::Poll::Ready(Some(Ok(frame)))
             }
             None => {
-                if let Some(tx) = this.trailers_tx.take() {
-                    tx.send(this.inner.poll_recv_trailers()?);
+                // if let Some(tx) = this.trailers_tx.take() {
+                //     if let Err(e) = tx.send(this.inner.poll_recv_trailers()?) {
+                //         error!("failed to transfer trailers: {:?}", e);
+                //     }
+                // }
+                let trailers = this.inner.poll_recv_trailers()?;
+                match trailers {
+                    Some(t) => std::task::Poll::Ready(Some(Ok(http_body::Frame::trailers(t)))),
+                    None => std::task::Poll::Ready(None),
                 }
-                std::task::Poll::Ready(None)
+                // std::task::Poll::Ready(None)
             }
         }
     }
@@ -167,13 +179,14 @@ where T: RecvStream
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
-        let mut hint = http_body::SizeHint::default();
-        hint.set_exact((self.length - self.rsize) as u64);
-        hint
+        http_body::SizeHint::default()
+        // let mut hint = http_body::SizeHint::default();
+        // hint.set_exact((self.length - self.rsize) as u64);
+        // hint
     }
 }
 
-struct H3 {
+pub struct H3 {
     tls: ServerConfig,
     addr: SocketAddr,
 }
@@ -188,22 +201,22 @@ impl H3 {
     async fn bind<T>(req: hyper::Request<()>, stream: RequestStream<T, Bytes>, mut inject: Inject)
     where T: BidiStream<Bytes> + 'static {
         let router = inject.router.as_mut().unwrap();
-        let (tx, rx) = stream.split();
-        let (trailers_tx, trailers_rx) = tokio::sync::oneshot::channel::<Option<HeaderMap>>();
-        // FIXME handle error
-        let length: usize = req
-            .headers()
-            .get(CONTENT_LENGTH)
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .parse()
-            .unwrap();
+        let (mut tx, rx) = stream.split();
+        // FIXME: handle error
+        // TODO: maybe no need length
+        // let length: usize = req
+        //     .headers()
+        //     .get(CONTENT_LENGTH)
+        //     .unwrap()
+        //     .to_str()
+        //     .unwrap()
+        //     .parse()
+        //     .unwrap();
         let h3_recv = H3Recv {
             inner: rx,
-            length,
-            rsize: 0,
-            trailers_tx: Some(trailers_tx),
+            // length,
+            // rsize: 0,
+            // trailers_tx: Some(trailers_tx),
         };
         match hyper::http::Request::builder()
             .method(req.method())
@@ -213,17 +226,9 @@ impl H3 {
         {
             Ok(mut new_req) => {
                 *new_req.headers_mut() = req.headers().clone();
-                // new_req = new_req.with_trailers(async move {
-                //     match trailers_rx.await {
-                //         Ok(rx_res) => rx_res.map(|x| Ok(x)),
-                //         Err(err) => Some(Err(crate::error::Error::from(err))),
-                //     }
-                // });
-                // let bobo = new_req.body_mut();c
                 match router.call(new_req).await {
                     Ok(rsp) => {
-                        // rsp.with_trailers()
-                        if let Err(err) = Self::handle(tx, rsp).await {
+                        if let Err(err) = Self::handle(&mut tx, rsp).await {
                             error!(e = err.to_string();"failed to handle http3 response");
                         }
                     }
@@ -240,43 +245,64 @@ impl H3 {
 
     // <T as BidiStream<Bytes>>::SendStream
     async fn handle<T>(
-        mut tx: RequestStream<T, Bytes>,
+        tx: &mut RequestStream<T, Bytes>,
         rsp: axum::response::Response,
     ) -> CoralRes<()>
     where
         T: h3::quic::SendStream<Bytes>,
     {
-        // rsp.with_trailers()
+        let (parts, rsp_body) = rsp.into_parts();
         let mut rsp_parts = hyper::http::Response::builder()
-            .status(rsp.status())
+            .status(parts.status)
             .version(hyper::Version::HTTP_3)
             .body(())?;
-        *rsp_parts.headers_mut() = rsp.headers().clone();
+        *rsp_parts.headers_mut() = parts.headers.clone();
         tx.send_response(rsp_parts).await?;
-        let t = rsp.body();
-        use http_body_util::BodyExt;
-        // let c = t.boxed();
-        // http_body
-        // tx.send_data()
-        // tx.send_trailers()
+        let mut body_stream = BodyStream::new(rsp_body);
+        // INFO: use tokio StreamExt
+        while let Some(body_frame) = body_stream.next().await {
+            match body_frame {
+                Ok(frame) => {
+                    if frame.is_data() {
+                        match frame.into_data() {
+                            Ok(f_d) => {
+                                // TODO: handle error
+                                tx.send_data(f_d).await.unwrap();
+                            }
+                            Err(_) => todo!(),
+                        }
+                    } else if frame.is_trailers() {
+                        match frame.into_trailers() {
+                            Ok(f_t) => {
+                                // TODO: handle error
+                                tx.send_trailers(f_t).await.unwrap();
+                            }
+                            Err(_) => todo!(),
+                        }
+                    }
+                }
+                Err(err) => todo!(),
+            }
+        }
+        // TODO: handle error
+        tx.finish().await.unwrap();
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl HttpServ for H3 {
-    async fn run(self) -> CoralRes<()> {
+    async fn run(self, router: axum::Router) -> CoralRes<()> {
         let serv_cfg = quinn::ServerConfig::with_crypto(Arc::new(
             quinn_proto::crypto::rustls::QuicServerConfig::try_from(self.tls.clone())?,
         ));
         let endpoint = quinn::Endpoint::server(serv_cfg, self.addr)?;
         while let Some(new_conn) = endpoint.accept().await {
-            tokio::spawn(async {
+            let router = router.clone();
+            tokio::spawn(async move {
                 let mut inject = Inject::default();
+                inject.set_router(router);
                 inject.set_peer_addr(new_conn.remote_address());
-                let r: axum::Router =
-                    axum::Router::new().route("/", axum::routing::post(http_hand));
-                inject.set_router(r);
                 match new_conn.await {
                     Ok(conn) => {
                         match h3::server::Connection::new(h3_quinn::Connection::new(conn)).await {
@@ -306,4 +332,53 @@ impl HttpServ for H3 {
     }
 }
 
-pub struct Builder {}
+#[derive(Default)]
+pub struct Builder {
+    tls_config: Option<ServerConfig>,
+    http1_only: bool,
+    http2_only: bool,
+    http1_or_2: bool,
+    address: String,
+}
+
+impl Builder {
+    pub fn tls_config(mut self, config: ServerConfig) -> Self {
+        self.tls_config = Some(config);
+        self
+    }
+
+    pub fn http1_only(mut self, set: bool) -> Self {
+        self.http1_only = set;
+        self
+    }
+
+    pub fn http2_only(mut self, set: bool) -> Self {
+        self.http2_only = set;
+        self
+    }
+
+    pub fn http1_or_2(mut self, set: bool) -> Self {
+        self.http1_or_2 = set;
+        self
+    }
+
+    pub fn address(mut self, address: String) -> Self {
+        self.address = address;
+        self
+    }
+
+    pub fn http1_2(mut self) -> H1_2<String> {
+        H1_2 {
+            tls: self.tls_config.take().unwrap(),
+            addr: self.address,
+        }
+    }
+
+    pub fn http3(mut self) -> H3 {
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9001);
+        H3 {
+            tls: self.tls_config.take().unwrap(),
+            addr,
+        }
+    }
+}
