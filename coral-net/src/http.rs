@@ -159,8 +159,7 @@ impl Drop for SenderGuard {
 }
 
 impl<T> HttpSendHandle<T>
-where
-    T: HttpSend + Default,
+where T: HttpSend + Default
 {
     async fn new(addr: &str, tls_cfg: ClientConfig) -> CoralRes<Self> {
         let mut t = T::default();
@@ -246,8 +245,7 @@ impl<T> Clone for HttpSendPool<T> {
 }
 
 impl<T> HttpSendPool<T>
-where
-    T: HttpSend + Default + Send + Sync + 'static,
+where T: HttpSend + Default + Send + Sync + 'static
 {
     async fn remove(self) {
         let mut pool = self.inner.write().await;

@@ -3,7 +3,9 @@ pub mod discover;
 pub mod error;
 mod http;
 pub mod server;
+mod tcp;
 mod tls;
+mod udp;
 
 pub use tls::client_conf;
 pub use tls::server_conf;
