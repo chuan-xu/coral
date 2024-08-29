@@ -67,7 +67,8 @@ pub struct H1_2<A> {
 }
 
 impl<A> H1_2<A>
-where A: ToSocketAddrs + Clone
+where
+    A: ToSocketAddrs + Clone,
 {
     async fn bind(acceptor: TlsAcceptor, stream: TcpStream, inject: Inject) {
         let addr = inject.peer_addr.clone();
@@ -100,7 +101,8 @@ where A: ToSocketAddrs + Clone
 
 #[async_trait::async_trait]
 impl<A> HttpServ for H1_2<A>
-where A: ToSocketAddrs + Clone + Send + Sync + 'static
+where
+    A: ToSocketAddrs + Clone + Send + Sync + 'static,
 {
     async fn run(self, router: axum::Router) -> CoralRes<()> {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
@@ -137,7 +139,8 @@ unsafe impl<T> Send for H3Recv<T> {}
 unsafe impl<T> Sync for H3Recv<T> {}
 
 impl<T> hyper::body::Body for H3Recv<T>
-where T: RecvStream
+where
+    T: RecvStream,
 {
     type Data = Bytes;
 
@@ -199,7 +202,9 @@ async fn http_hand(mut req: axum::extract::Request) {
 
 impl H3 {
     async fn bind<T>(req: hyper::Request<()>, stream: RequestStream<T, Bytes>, mut inject: Inject)
-    where T: BidiStream<Bytes> + 'static {
+    where
+        T: BidiStream<Bytes> + 'static,
+    {
         let router = inject.router.as_mut().unwrap();
         let (mut tx, rx) = stream.split();
         // FIXME: handle error

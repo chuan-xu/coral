@@ -85,7 +85,7 @@ where
         })
     }
 }
-impl<B> crate::client::statistics for H1<B> {
+impl<B> crate::client::Statistics for H1<B> {
     fn usage_count(&self) -> (u32, u8) {
         (
             self.count.load(Ordering::Acquire),
@@ -158,11 +158,11 @@ where
     }
 }
 
-impl<B> crate::client::statistics for H2<B> {
+impl<B> crate::client::Statistics for H2<B> {
     fn usage_count(&self) -> (u32, u8) {
         let is_closed = self.inner.is_closed();
         match self.count.load(Ordering::Acquire) {
-            0 | 1 => {
+            0 => {
                 if is_closed {
                     let mut cur = crate::client::NORMAL;
                     loop {
@@ -179,8 +179,31 @@ impl<B> crate::client::statistics for H2<B> {
                         }
                         break;
                     }
+                    (u32::MAX, crate::client::CLOSED)
                 } else {
-                    self.count.load(Ordering::Acquire)
+                    (self.count.load(Ordering::Acquire), crate::client::NORMAL)
+                }
+            }
+            1 => {
+                if is_closed {
+                    let mut cur = crate::client::REJECT;
+                    loop {
+                        if let Err(c) = self.state.compare_exchange(
+                            cur,
+                            crate::client::CLOSED,
+                            Ordering::SeqCst,
+                            Ordering::Acquire,
+                        ) {
+                            if c == crate::client::NORMAL || c == crate::client::REJECT {
+                                cur = c;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+                    (u32::MAX, crate::client::CLOSED)
+                } else {
+                    (u32::MAX, crate::client::REJECT)
                 }
             }
             2 => {
@@ -196,13 +219,9 @@ impl<B> crate::client::statistics for H2<B> {
                     (u32::MAX, crate::client::CLEANING)
                 }
             }
-            4 => {}
-            _ => {}
+            4 => (u32::MAX, crate::client::CLEANED),
+            _ => (u32::MAX, crate::client::CLEANING),
         }
-        // (
-        //     self.count.load(Ordering::Acquire),
-        //     self.state.load(Ordering::Acquire),
-        // )
     }
 
     fn usage_add(&self) -> crate::client::StatisticsGuard {

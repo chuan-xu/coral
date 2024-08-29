@@ -28,14 +28,6 @@ pub trait Request<R, H> {
     async fn send(&mut self, req: hyper::Request<R>) -> CoralRes<hyper::Response<H>>;
 }
 
-#[async_trait::async_trait]
-pub trait Pool {
-    // fn add(&mut self) -> CoralRes<()>;
-    type Client;
-
-    async fn load_balance(self: Arc<Self>) -> CoralRes<Option<(Self::Client, StatisticsGuard)>>;
-}
-
 pub struct StatisticsGuard(pub(crate) Arc<AtomicU32>);
 
 impl Drop for StatisticsGuard {
@@ -44,38 +36,63 @@ impl Drop for StatisticsGuard {
     }
 }
 
-pub trait statistics {
+pub trait Statistics {
     fn usage_count(&self) -> (u32, u8);
 
     fn usage_add(&self) -> StatisticsGuard;
+
+    fn is_valid(&self) -> bool {
+        true
+    }
 }
 /// use sample vector
-struct VecClients<T, R, H> {
-    inner: tokio::sync::RwLock<Vec<T>>,
+pub struct VecClients<T, R, H> {
+    inner: Arc<tokio::sync::RwLock<Vec<T>>>,
     phr: PhantomData<R>,
     phh: PhantomData<H>,
 }
 
-#[async_trait::async_trait]
-impl<T, R, H> crate::client::Pool for VecClients<T, R, H>
+impl<T, R, H> Clone for VecClients<T, R, H>
 where
-    T: crate::client::Request<R, H> + crate::client::statistics + Clone + Send + Sync,
-    R: Send + Sync,
-    H: Send + Sync,
+    T: Clone + Statistics,
 {
-    type Client = T;
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            phr: self.phr.clone(),
+            phh: self.phh.clone(),
+        }
+    }
+}
 
-    async fn load_balance(
-        self: Arc<Self>,
-    ) -> CoralRes<Option<(Self::Client, crate::client::StatisticsGuard)>> {
+impl<T, R, H> VecClients<T, R, H>
+where
+    T: Statistics,
+{
+    async fn clean(self) {
+        let mut pool = self.inner.write().await;
+        pool.retain(|x| x.is_valid());
+    }
+}
+
+impl<T, R, H> VecClients<T, R, H>
+where
+    T: Request<R, H> + Statistics + Clone + Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    H: Send + Sync + 'static,
+{
+    pub async fn load_balance(self: Self) -> CoralRes<Option<(T, crate::client::StatisticsGuard)>> {
         let pool = self.inner.read().await;
         let mut min = u32::MAX;
         let mut instance = None;
         for item in pool.iter() {
             let (count, state) = item.usage_count();
-            if count < min {
+            if count < min && state == NORMAL {
                 min = count;
                 instance = Some((item.clone(), item.usage_add()));
+            } else if state == CLOSED {
+                let this = self.clone();
+                tokio::spawn(this.clean());
             }
         }
         Ok(instance)
