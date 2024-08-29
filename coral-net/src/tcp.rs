@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
+use coral_macro::trace_error;
 use coral_runtime::tokio;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
@@ -36,9 +38,10 @@ async fn establish_tls_connection(
 }
 
 /// http1.1
-struct H1<B> {
+pub struct H1<B> {
     inner: hyper::client::conn::http1::SendRequest<B>,
-    count: Arc<AtomicUsize>,
+    count: Arc<AtomicU32>,
+    state: Arc<AtomicU8>,
 }
 
 #[async_trait::async_trait]
@@ -63,7 +66,7 @@ where
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    async fn new(
+    pub async fn new(
         socket: TlsSocket,
         builder: hyper::client::conn::http1::Builder,
     ) -> CoralRes<Self> {
@@ -77,13 +80,17 @@ where
         });
         Ok(Self {
             inner: sender,
-            count: Arc::new(AtomicUsize::default()),
+            count: Arc::new(AtomicU32::default()),
+            state: Arc::new(AtomicU8::default()),
         })
     }
 }
 impl<B> crate::client::statistics for H1<B> {
-    fn usage_count(&self) -> usize {
-        self.count.load(Ordering::Acquire)
+    fn usage_count(&self) -> (u32, u8) {
+        (
+            self.count.load(Ordering::Acquire),
+            self.state.load(Ordering::Acquire),
+        )
     }
 
     fn usage_add(&self) -> crate::client::StatisticsGuard {
@@ -93,8 +100,20 @@ impl<B> crate::client::statistics for H1<B> {
 }
 
 /// http2.0
-struct H2<B> {
+pub struct H2<B> {
     inner: hyper::client::conn::http2::SendRequest<B>,
+    count: Arc<AtomicU32>,
+    state: Arc<AtomicU8>,
+}
+
+impl<B> Clone for H2<B> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            count: self.count.clone(),
+            state: self.state.clone(),
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -119,7 +138,7 @@ where
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    async fn new(
+    pub async fn new(
         socket: TlsSocket,
         builder: hyper::client::conn::http2::Builder<TokioExecutor>,
     ) -> CoralRes<Self> {
@@ -131,7 +150,64 @@ where
                 error!(e = err.to_string(); "http2 client disconnect");
             }
         });
-        Ok(Self { inner: sender })
+        Ok(Self {
+            inner: sender,
+            count: Arc::new(AtomicU32::default()),
+            state: Arc::new(AtomicU8::default()),
+        })
+    }
+}
+
+impl<B> crate::client::statistics for H2<B> {
+    fn usage_count(&self) -> (u32, u8) {
+        let is_closed = self.inner.is_closed();
+        match self.count.load(Ordering::Acquire) {
+            0 | 1 => {
+                if is_closed {
+                    let mut cur = crate::client::NORMAL;
+                    loop {
+                        if let Err(c) = self.state.compare_exchange(
+                            cur,
+                            crate::client::CLOSED,
+                            Ordering::SeqCst,
+                            Ordering::Acquire,
+                        ) {
+                            if c == crate::client::NORMAL || c == crate::client::REJECT {
+                                cur = c;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+                } else {
+                    self.count.load(Ordering::Acquire)
+                }
+            }
+            2 => {
+                if let Err(c) = self.state.compare_exchange(
+                    crate::client::CLOSED,
+                    crate::client::CLEANING,
+                    Ordering::SeqCst,
+                    Ordering::Acquire,
+                ) {
+                    trace_error!(state = c;"failed to compare exchange CLOSED to CLEANING");
+                    (u32::MAX, c)
+                } else {
+                    (u32::MAX, crate::client::CLEANING)
+                }
+            }
+            4 => {}
+            _ => {}
+        }
+        // (
+        //     self.count.load(Ordering::Acquire),
+        //     self.state.load(Ordering::Acquire),
+        // )
+    }
+
+    fn usage_add(&self) -> crate::client::StatisticsGuard {
+        self.count.fetch_add(1, Ordering::AcqRel);
+        crate::client::StatisticsGuard(self.count.clone())
     }
 }
 
@@ -144,35 +220,4 @@ struct Rpc {}
 struct TcpServer {
     listen_addr: std::net::SocketAddr,
     tls_cfg: ServerConfig,
-}
-
-/// use sample vector
-struct VecClients<T, R, H> {
-    inner: tokio::sync::RwLock<Vec<T>>,
-    phr: PhantomData<R>,
-    phh: PhantomData<H>,
-}
-
-#[async_trait::async_trait]
-impl<T, R, H> crate::client::Pool for VecClients<T, R, H>
-where
-    T: crate::client::Request<R, H> + crate::client::statistics + Clone + Send + Sync,
-    R: Send + Sync,
-    H: Send + Sync,
-{
-    type Client = T;
-
-    async fn load_balance(self: Arc<Self>) -> CoralRes<Option<Self::Client>> {
-        let pool = self.inner.read().await;
-        let mut min = usize::MAX;
-        let mut instance = None;
-        for item in pool.iter() {
-            let count = item.usage_count();
-            if count < min {
-                min = count;
-                instance = Some(item.clone());
-            }
-        }
-        Ok(instance)
-    }
 }

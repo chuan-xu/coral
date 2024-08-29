@@ -6,6 +6,7 @@ use std::sync::Arc;
 use axum::http::HeaderValue;
 use bytes::Buf;
 use bytes::Bytes;
+use coral_net::client::Request;
 use coral_net::client_conf;
 use coral_net::TlsParam;
 use coral_runtime::tokio;
@@ -26,7 +27,9 @@ fn get_config() -> rustls::ClientConfig {
 }
 
 use axum::body::BodyDataStream;
+use rustls::pki_types;
 use tokio_rustls::client::TlsStream;
+use tokio_rustls::TlsConnector;
 use tokio_stream::StreamExt;
 
 type HandshakeSend = hyper::client::conn::http2::SendRequest<BodyDataStream>;
@@ -134,4 +137,55 @@ fn h3_client() {
         .build()
         .unwrap();
     rt.block_on(h3());
+}
+
+async fn coral_h1_create() {
+    let stream = tokio::net::TcpStream::connect("127.0.0.1:9001")
+        .await
+        .unwrap();
+    let domian = pki_types::ServerName::try_from("server.test.com").unwrap();
+    let connector = TlsConnector::from(Arc::new(get_config()));
+    let tls_socket = connector.connect(domian, stream).await.unwrap();
+    let builder = hyper::client::conn::http1::Builder::new();
+    let mut h1: coral_net::tcp::H1<BodyDataStream> =
+        coral_net::tcp::H1::new(tls_socket, builder).await.unwrap();
+    let abody = axum::body::Body::from("hello");
+    let bs = abody.into_data_stream();
+    let request = hyper::Request::builder().body(bs).unwrap();
+    h1.send(request).await.unwrap();
+}
+
+#[test]
+fn coral_h1_client() {
+    let rt = coral_runtime::tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(coral_h1_create());
+}
+
+async fn coral_h2_create() {
+    let stream = tokio::net::TcpStream::connect("127.0.0.1:9001")
+        .await
+        .unwrap();
+    let domian = pki_types::ServerName::try_from("server.test.com").unwrap();
+    let connector = TlsConnector::from(Arc::new(get_config()));
+    let tls_socket = connector.connect(domian, stream).await.unwrap();
+    let builder = hyper::client::conn::http2::Builder::new(TokioExecutor::new());
+    let mut h2: coral_net::tcp::H2<BodyDataStream> =
+        coral_net::tcp::H2::new(tls_socket, builder).await.unwrap();
+    let abody = axum::body::Body::from("hello");
+    let bs = abody.into_data_stream();
+    let request = hyper::Request::builder().body(bs).unwrap();
+    h2.send(request).await.unwrap();
+    let h2_clone = h2.clone();
+}
+
+#[test]
+fn coral_h2_client() {
+    let rt = coral_runtime::tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(coral_h2_create());
 }

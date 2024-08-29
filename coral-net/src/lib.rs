@@ -3,7 +3,7 @@ pub mod discover;
 pub mod error;
 mod http;
 pub mod server;
-mod tcp;
+pub mod tcp;
 mod tls;
 mod udp;
 
