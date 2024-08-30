@@ -1,43 +1,59 @@
+use std::io::Read;
+
 use clap::Parser;
+use serde::Deserialize;
 
 use crate::error::CoralRes;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    #[arg(long, help = "server port")]
-    pub port: u16,
+    #[command(flatten)]
+    pub server_param: coral_net::server::ServerParam,
 
     #[command(flatten)]
-    pub comm_param: coral_util::cli::CommParam,
+    pub tls_param: coral_net::tls::TlsParam,
 
     #[command(flatten)]
     pub log_param: coral_log::LogParam,
 
     #[command(flatten)]
     pub runtime_param: coral_runtime::RuntimeParam,
+
+    #[command(flatten)]
+    pub discover_param: coral_net::discover::DiscoverParam,
+
+    #[arg(long, help = "the uri of discover service")]
+    pub conn_conf: Option<String>,
 }
 
 impl Cli {
     pub(crate) fn init() -> CoralRes<Self> {
         let args = Cli::parse();
-        args.comm_param.check()?;
+        args.tls_param.check()?;
         args.log_param.check()?;
         args.runtime_param.check()?;
         Ok(args)
     }
 
-    // TODO
-    // pub(crate) fn get_rotation(&self) -> CoralRes<logs::Rotation> {
-    //     let rotation = self
-    //         .log_rotation
-    //         .as_ref()
-    //         .ok_or(Error::MissingLogRotation)?;
-    //     match rotation.as_str() {
-    //         "min" => Ok(logs::Rotation::MINUTELY),
-    //         "hour" => Ok(logs::Rotation::HOURLY),
-    //         "day" => Ok(logs::Rotation::DAILY),
-    //         _ => Ok(logs::Rotation::NEVER),
-    //     }
-    // }
+    pub(crate) fn get_conn(&self) -> CoralRes<Vec<ConnConf>> {
+        if let Some(path) = self.conn_conf.as_ref() {
+            let mut fd = std::fs::File::open(path)?;
+            let mut buf = Vec::new();
+            fd.read_to_end(&mut buf)?;
+            let conn_conf: Vec<ConnConf> = serde_json::from_slice(buf.as_slice())?;
+            return Ok(conn_conf);
+        }
+        Ok(vec![])
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ConnConf {
+    pub ip: String,
+    pub port: u16,
+    pub domain: String,
+    pub ca: Option<String>,
+    pub cert: String,
+    pub key: String,
 }

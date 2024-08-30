@@ -16,6 +16,7 @@ use rustls_pemfile::private_key;
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::error::CoralRes;
+use crate::error::Error;
 
 #[derive(Args, Debug)]
 pub struct TlsParam {
@@ -27,6 +28,25 @@ pub struct TlsParam {
 
     #[arg(long, help = "server/client private")]
     pub tls_key: String,
+}
+
+impl TlsParam {
+    pub fn check(&self) -> CoralRes<()> {
+        if let Some(dir) = self.tls_ca.as_ref() {
+            if !std::fs::metadata(dir)?.is_dir() {
+                return Err(Error::InvalidCa);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn new(tls_ca: Option<String>, tls_cert: String, tls_key: String) -> Self {
+        Self {
+            tls_ca,
+            tls_cert,
+            tls_key,
+        }
+    }
 }
 
 /// 根证书

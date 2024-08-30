@@ -48,13 +48,22 @@ pub trait Statistics {
 /// use sample vector
 pub struct VecClients<T, R, H> {
     inner: Arc<tokio::sync::RwLock<Vec<T>>>,
-    phr: PhantomData<R>,
-    phh: PhantomData<H>,
+    phr: PhantomData<Arc<std::sync::Mutex<R>>>,
+    phh: PhantomData<Arc<std::sync::Mutex<H>>>,
+}
+
+impl<T, R, H> Default for VecClients<T, R, H> {
+    fn default() -> Self {
+        Self {
+            inner: Arc::new(tokio::sync::RwLock::new(vec![])),
+            phr: PhantomData,
+            phh: PhantomData,
+        }
+    }
 }
 
 impl<T, R, H> Clone for VecClients<T, R, H>
-where
-    T: Clone + Statistics,
+where T: Clone + Statistics
 {
     fn clone(&self) -> Self {
         Self {
@@ -67,20 +76,15 @@ where
 
 impl<T, R, H> VecClients<T, R, H>
 where
-    T: Statistics,
+    T: Request<R, H> + Statistics + Clone + Send + Sync + 'static,
+    R: Send + 'static,
+    H: Send + 'static,
 {
     async fn clean(self) {
         let mut pool = self.inner.write().await;
         pool.retain(|x| x.is_valid());
     }
-}
 
-impl<T, R, H> VecClients<T, R, H>
-where
-    T: Request<R, H> + Statistics + Clone + Send + Sync + 'static,
-    R: Send + Sync + 'static,
-    H: Send + Sync + 'static,
-{
     pub async fn load_balance(self: Self) -> CoralRes<Option<(T, crate::client::StatisticsGuard)>> {
         let pool = self.inner.read().await;
         let mut min = u32::MAX;
@@ -96,5 +100,10 @@ where
             }
         }
         Ok(instance)
+    }
+
+    pub async fn add(self, conn: T) {
+        let mut pool = self.inner.write().await;
+        pool.push(conn);
     }
 }

@@ -27,7 +27,7 @@ pub fn is_valid_ipv4_with_port(addr: &str) -> bool {
     DOT_DECIMAL_RE.is_match(addr)
 }
 
-pub fn modify_path_uri(uri: &Uri, mod_path: &str) -> CoralRes<Uri> {
+pub fn reset_uri_path(uri: &Uri, mod_path: &str) -> CoralRes<Uri> {
     let authority = uri
         .authority()
         .ok_or_else(|| {
@@ -60,7 +60,7 @@ pub fn get_modify_path_url<'a>(uri: &'a Uri, mod_path: &str) -> CoralRes<(&'a Pa
         error!("uri.path_and_query is none");
         Error::NoneOption("uri.path_and_query")
     })?;
-    let mod_path = modify_path_uri(uri, mod_path)?;
+    let mod_path = reset_uri_path(uri, mod_path)?;
     Ok((path, mod_path))
 }
 

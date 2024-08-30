@@ -1,8 +1,11 @@
+use std::net::Ipv4Addr;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::Request;
+use axum::http::uri::PathAndQuery;
 use axum::routing::get;
 use axum::routing::post;
 use axum::Router;
@@ -27,6 +30,7 @@ use crate::http::set_discover;
 use crate::http::ConnPool;
 use crate::http::{self};
 use crate::util;
+use crate::util::reset_uri_path;
 use crate::util::WS_RESET_URI;
 use crate::ws;
 use crate::ws::websocket_conn_hand;
@@ -64,70 +68,51 @@ fn handle_request(
     }
 }
 
-async fn hand_stream(
-    tls_accept: TlsAcceptor,
-    cnx: tokio::net::TcpStream,
-    addr: SocketAddr,
-    tower_service: Router,
-    pxy_pool: ConnPool,
-) {
-    info!("new connection: {}", addr);
-    match tls_accept.accept(cnx).await {
-        Ok(stream) => {
-            let stream = TokioIo::new(stream);
-            let hyper_service = hyper::service::service_fn(|req: hyper::Request<Incoming>| {
-                handle_request(req, pxy_pool.clone(), tower_service.clone(), addr)
-            });
-            let ret = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
-                .serve_connection_with_upgrades(stream, hyper_service)
-                .await;
-            if let Err(err) = ret {
-                error!("error serving connection from {}: {}", addr, err);
-            }
-        }
-        Err(e) => {
-            error!("tls accept error {}", e);
-        }
+static RESET_URI: &'static str = "/reset";
+
+fn map_req(mut req: hyper::Request<()>) -> hyper::Request<()> {
+    let path = req
+        .uri()
+        .path_and_query()
+        .map(|v| v.to_owned())
+        .unwrap_or(PathAndQuery::from_static("/"));
+    if let Ok(uri) = reset_uri_path(req.uri(), RESET_URI) {
+        *req.uri_mut() = uri;
     }
+    req.extensions_mut().insert(path);
+    req
 }
 
-async fn server(args: cli::Cli) -> CoralRes<()> {
-    args.log_param.set_traces();
-    let conf = coral_util::tls::server_conf(&args.comm_param)?;
-    let tls_acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(conf));
-    let bind = std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), args.port);
-    let tcp_listener = tokio::net::TcpListener::bind(bind).await?;
-    let app = Router::new()
-        .route(util::HTTP_RESET_URI, post(http::proxy))
-        .route(util::WS_RESET_URI, get(ws::websocket_upgrade_hand))
-        .layer(coral_util::tow::TraceLayer::default());
-    let conn_pool = ConnPool::new();
-    set_discover(args.comm_param.cache_addr.as_ref(), conn_pool.clone()).await?;
-
-    futures::pin_mut!(tcp_listener);
-    loop {
-        match tcp_listener.accept().await {
-            Ok((cnx, addr)) => {
-                tokio::spawn(hand_stream(
-                    tls_acceptor.clone(),
-                    cnx,
-                    addr,
-                    app.clone(),
-                    conn_pool.clone(),
-                ));
-            }
-            Err(err) => {
-                error!(e = err.to_string(); "failed to tcp accept");
-            }
-        }
+async fn server(args: &cli::Cli) -> CoralRes<()> {
+    let pool = coral_net::client::VecClients::<_, axum::body::Body, _>::default();
+    let confs = args.get_conn()?;
+    for conf in confs.iter() {
+        let tls_conf = coral_net::tls::client_conf(&coral_net::tls::TlsParam::new(
+            conf.ca.clone(),
+            conf.cert.clone(),
+            conf.key.clone(),
+        ))?;
+        let addr = SocketAddr::new(std::net::IpAddr::from_str(&conf.ip).unwrap(), conf.port);
+        let conn = coral_net::udp::H3::new(addr, &conf.domain, Arc::new(tls_conf)).await?;
+        pool.clone().add(conn).await;
     }
+    let addr = SocketAddr::new(
+        std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+        args.server_param.port,
+    );
+    let app = axum::Router::new().route(RESET_URI, get(|| async { "hello" }));
+    coral_net::server::ServerBuiler::new(addr, coral_net::tls::server_conf(&args.tls_param)?)
+        .add_backend(String::from("h3"), pool)
+        .udp_server::<_>(app, Some(map_req))
+        .await?;
+    Ok(())
 }
 
 pub fn run() -> CoralRes<()> {
     let args = cli::Cli::init()?;
     let rt = coral_runtime::runtime(&args.runtime_param, "coral-proxy")?;
-    if let Err(err) = rt.block_on(server(args)) {
-        error!(e = err.to_string(); "block on server error");
+    if let Err(err) = rt.block_on(server(&args)) {
+        error!(e = err.to_string(); "block on server {:?}", args);
     }
     Ok(())
 }

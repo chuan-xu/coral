@@ -10,6 +10,8 @@ use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
 use bytes::BytesMut;
+use clap::Args;
+use coral_macro::trace_error;
 use coral_runtime::tokio::net::TcpStream;
 use coral_runtime::tokio::net::ToSocketAddrs;
 use coral_runtime::tokio::{self};
@@ -23,6 +25,7 @@ use hyper::HeaderMap;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
+use log::info;
 use rustls::ServerConfig;
 use tokio_rustls::TlsAcceptor;
 use tokio_stream::StreamExt;
@@ -30,6 +33,12 @@ use tower::Service;
 
 use crate::error::CoralRes;
 use crate::tls::server_conf;
+
+#[derive(Args, Debug)]
+pub struct ServerParam {
+    #[arg(long, help = "server port")]
+    pub port: u16,
+}
 
 #[async_trait::async_trait]
 pub trait HttpServ {
@@ -67,8 +76,7 @@ pub struct H1_2<A> {
 }
 
 impl<A> H1_2<A>
-where
-    A: ToSocketAddrs + Clone,
+where A: ToSocketAddrs + Clone
 {
     async fn bind(acceptor: TlsAcceptor, stream: TcpStream, inject: Inject) {
         let addr = inject.peer_addr.clone();
@@ -101,8 +109,7 @@ where
 
 #[async_trait::async_trait]
 impl<A> HttpServ for H1_2<A>
-where
-    A: ToSocketAddrs + Clone + Send + Sync + 'static,
+where A: ToSocketAddrs + Clone + Send + Sync + 'static
 {
     async fn run(self, router: axum::Router) -> CoralRes<()> {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
@@ -125,22 +132,17 @@ where
 }
 
 pin_project_lite::pin_project! {
-    struct H3Recv<T> {
+    struct H3RecvStream<T> {
         #[pin]
         inner: RequestStream<T, Bytes>,
-
-        // length: usize,
-        // rsize: usize,
-        // trailers_tx: Option<tokio::sync::oneshot::Sender<Option<HeaderMap>>>
     }
 }
 
-unsafe impl<T> Send for H3Recv<T> {}
-unsafe impl<T> Sync for H3Recv<T> {}
+unsafe impl<T> Send for H3RecvStream<T> {}
+unsafe impl<T> Sync for H3RecvStream<T> {}
 
-impl<T> hyper::body::Body for H3Recv<T>
-where
-    T: RecvStream,
+impl<T> hyper::body::Body for H3RecvStream<T>
+where T: RecvStream
 {
     type Data = Bytes;
 
@@ -202,27 +204,11 @@ async fn http_hand(mut req: axum::extract::Request) {
 
 impl H3 {
     async fn bind<T>(req: hyper::Request<()>, stream: RequestStream<T, Bytes>, mut inject: Inject)
-    where
-        T: BidiStream<Bytes> + 'static,
-    {
+    where T: BidiStream<Bytes> + 'static {
         let router = inject.router.as_mut().unwrap();
         let (mut tx, rx) = stream.split();
         // FIXME: handle error
-        // TODO: maybe no need length
-        // let length: usize = req
-        //     .headers()
-        //     .get(CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap()
-        //     .parse()
-        //     .unwrap();
-        let h3_recv = H3Recv {
-            inner: rx,
-            // length,
-            // rsize: 0,
-            // trailers_tx: Some(trailers_tx),
-        };
+        let h3_recv = H3RecvStream { inner: rx };
         match hyper::http::Request::builder()
             .method(req.method())
             .uri(req.uri())
@@ -386,4 +372,331 @@ impl Builder {
             addr,
         }
     }
+}
+
+struct Extension<T, R, H> {
+    router: axum::Router,
+    peer_addr: Option<SocketAddr>,
+    backends: Option<std::collections::HashMap<String, crate::client::VecClients<T, R, H>>>,
+}
+
+impl<T, R, H> Clone for Extension<T, R, H>
+where T: Clone + crate::client::Statistics
+{
+    fn clone(&self) -> Self {
+        Self {
+            router: self.router.clone(),
+            peer_addr: self.peer_addr.clone(),
+            backends: self.backends.clone(),
+        }
+    }
+}
+
+fn tcp_handle_request<T, R, H, F>(
+    mut req: hyper::Request<hyper::body::Incoming>,
+    mut ext: Extension<T, R, H>,
+    map_req: Option<F>,
+) -> axum::routing::future::RouteFuture<std::convert::Infallible>
+where
+    T: crate::client::Statistics + Clone + Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    H: Send + Sync + 'static,
+    F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming>,
+{
+    let mut router = ext.router.clone();
+    if let Some(ends) = ext.backends.take() {
+        req.extensions_mut().insert(ends);
+    }
+    if let Some(f) = map_req {
+        router.call(f(req))
+    } else {
+        router.call(req)
+    }
+
+    // let headers = req.headers();
+
+    // 判断是否是websocket连接
+    // if headers
+    //     .get(hyper::header::CONNECTION)
+    //     .and_then(|v| v.to_str().ok())
+    //     .map(|v| v.to_lowercase() == "upgrade")
+    //     .unwrap_or(false)
+    //     && headers
+    //         .get(hyper::header::UPGRADE)
+    //         .and_then(|v| v.to_str().ok())
+    //         .map(|v| v.to_lowercase() == "websocket")
+    //         .unwrap_or(false)
+    //     && headers.get(hyper::header::SEC_WEBSOCKET_KEY).is_some()
+    //     && req.method() == hyper::Method::GET
+    // {
+    //     let mut reqc = hyper::Request::<axum::body::Body>::default();
+    //     *reqc.version_mut() = req.version();
+    //     *reqc.headers_mut() = req.headers().clone();
+    //     *(reqc.uri_mut()) = hyper::Uri::from_static("/reset_ws");
+    //     // TODO
+    //     // tokio::spawn(websocket_conn_hand(req, addr));
+    //     router.call(reqc)
+    // } else {
+    //     if let Some(f) = map_req {
+    //         router.call(f(req))
+    //     } else {
+    //         router.call(req)
+    //     }
+    // }
+}
+
+async fn tcp_server<T, R, H, F>(
+    acceptor: TlsAcceptor,
+    stream: TcpStream,
+    ext: Extension<T, R, H>,
+    map_req: Option<F>,
+) where
+    T: crate::client::Statistics + Clone + Send + Sync + 'static,
+    R: Send + 'static,
+    H: Send + 'static,
+    F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming> + Clone,
+{
+    let peer_addr = ext.peer_addr.clone();
+    match acceptor.accept(stream).await {
+        Ok(stream) => {
+            let service = hyper::service::service_fn(|mut req: hyper::Request<_>| {
+                let mut router = ext.router.clone();
+                if let Some(ends) = ext.clone().backends.take() {
+                    req.extensions_mut().insert(ends);
+                }
+                if let Some(f) = map_req.clone().take() {
+                    router.call(f(req))
+                } else {
+                    router.call(req)
+                }
+            });
+            if let Err(err) = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+                .serve_connection_with_upgrades(TokioIo::new(stream), service)
+                .await
+            {
+                error!("failed to serving connection from {:?}: {}", peer_addr, err);
+            }
+        }
+        Err(err) => {
+            error!(e = err.to_string(); "failed to accept tls stream from {:?}", peer_addr);
+        }
+    }
+}
+
+pub struct ServerBuiler<T, R, H> {
+    addr: SocketAddr,
+    tls: ServerConfig,
+    backends: Option<std::collections::HashMap<String, crate::client::VecClients<T, R, H>>>,
+}
+
+impl<T, R, H> ServerBuiler<T, R, H>
+where
+    T: crate::client::Statistics + Clone + Send + Sync + 'static,
+    R: Send + 'static,
+    H: Send + 'static,
+{
+    pub fn new(addr: SocketAddr, tls: ServerConfig) -> Self {
+        Self {
+            addr,
+            tls,
+            backends: Some(std::collections::HashMap::default()),
+        }
+    }
+
+    pub fn add_backend(
+        mut self,
+        backend_name: String,
+        backend: crate::client::VecClients<T, R, H>,
+    ) -> Self {
+        if let Some(m) = self.backends.as_mut() {
+            m.insert(backend_name, backend);
+        }
+        self
+    }
+
+    pub async fn tcp_server<F>(self, router: axum::Router, map_req: Option<F>) -> CoralRes<()>
+    where F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming>
+            + Clone
+            + Send
+            + Sync
+            + 'static {
+        let listener = tokio::net::TcpListener::bind(&self.addr).await?;
+        let tls_acceptor = TlsAcceptor::from(Arc::new(self.tls));
+        loop {
+            match listener.accept().await {
+                Ok((stream, peer_addr)) => {
+                    let acceptor = tls_acceptor.clone();
+                    let ext = Extension {
+                        router: router.clone(),
+                        peer_addr: Some(peer_addr.clone()),
+                        backends: self.backends.clone(),
+                    };
+                    let map_req = map_req.clone();
+                    tokio::spawn(tcp_server(acceptor, stream, ext, map_req));
+                }
+                Err(err) => {
+                    error!(e = err.to_string(); "failed to tcp listen accept");
+                }
+            }
+        }
+        // Ok(())
+    }
+
+    pub async fn udp_server<F>(self, router: axum::Router, map_req: Option<F>) -> CoralRes<()>
+    where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static {
+        let serv_cfg = quinn::ServerConfig::with_crypto(Arc::new(
+            quinn_proto::crypto::rustls::QuicServerConfig::try_from(self.tls.clone())?,
+        ));
+        let endpoint = quinn::Endpoint::server(serv_cfg, self.addr)?;
+        while let Some(new_conn) = endpoint.accept().await {
+            let router = router.clone();
+            let ext = Extension {
+                router,
+                peer_addr: None,
+                backends: self.backends.clone(),
+            };
+            tokio::spawn(quic_server(new_conn, ext, map_req.clone()));
+        }
+        Ok(())
+    }
+}
+
+async fn quic_server<F, T, R, H>(conn: quinn::Incoming, ext: Extension<T, R, H>, map_req: Option<F>)
+where
+    T: crate::client::Statistics + Clone + Send + Sync + 'static,
+    R: Send + 'static,
+    H: Send + 'static,
+    // U: BidiStream<Bytes> + 'static,
+    F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone,
+{
+    match conn.await {
+        Ok(conn) => match h3::server::Connection::new(h3_quinn::Connection::new(conn)).await {
+            Ok(mut h3_conn) => loop {
+                match h3_conn.accept().await {
+                    Ok(Some((req, stream))) => {
+                        let mut req = match map_req.clone() {
+                            Some(f) => f(req),
+                            None => req,
+                        };
+                        if let Some(backends) = ext.backends.as_ref() {
+                            req.extensions_mut().insert(backends.clone());
+                        }
+                        let router = ext.router.clone();
+                        tokio::spawn(quic_handle_request(req, stream, router));
+                    }
+                    Ok(None) => {
+                        info!("disconnect");
+                        break;
+                    }
+                    Err(err) => match err.get_error_level() {
+                        h3::error::ErrorLevel::ConnectionError => {
+                            info!("disconnect");
+                            break;
+                        }
+                        h3::error::ErrorLevel::StreamError => {
+                            error!(e = err.to_string(); "failed to h3 connection accept");
+                            continue;
+                        }
+                    },
+                }
+            },
+            Err(err) => {
+                error!(e = err.to_string(); "failed to establish h3 connection");
+            }
+        },
+        Err(err) => {
+            error!(e = err.to_string(); "failed to finish quinn new connection in async");
+        }
+    }
+}
+
+async fn quic_handle_request<U>(
+    req: hyper::Request<()>,
+    stream: RequestStream<U, Bytes>,
+    mut router: axum::Router,
+) where
+    U: BidiStream<Bytes> + 'static,
+{
+    let (mut tx, rx) = stream.split();
+    let h3_recv = H3RecvStream { inner: rx };
+    match hyper::http::Request::builder()
+        .method(req.method())
+        .uri(req.uri())
+        .version(req.version())
+        .body(h3_recv)
+    {
+        Ok(mut new_req) => {
+            *new_req.headers_mut() = req.headers().clone();
+            *new_req.extensions_mut() = req.extensions().clone();
+            if let Err(err) =
+                quic_handle_response(&mut tx, router.call(new_req).await.unwrap()).await
+            {
+                trace_error!(e = err.to_string();"faild to handle response in quic");
+            }
+        }
+        Err(err) => {
+            error!(e = err.to_string(); "failed to create http request from he receiver stream");
+        }
+    }
+}
+
+async fn quic_handle_response<T>(
+    tx: &mut RequestStream<T, Bytes>,
+    rsp: axum::response::Response,
+) -> CoralRes<()>
+where
+    T: h3::quic::SendStream<Bytes>,
+{
+    let mut parts = hyper::http::Response::builder()
+        .status(rsp.status())
+        .version(hyper::Version::HTTP_3)
+        .body(())?;
+    *parts.headers_mut() = rsp.headers().clone();
+    tx.send_response(parts).await?;
+    let mut body_stream = BodyStream::new(rsp.into_body());
+    // INFO: use tokio StreamExt
+    while let Some(body_frame) = body_stream.next().await {
+        match body_frame {
+            Ok(body_frame) => {
+                if body_frame.is_data() {
+                    match body_frame.into_data() {
+                        Ok(frame) => {
+                            if let Err(err) = tx.send_data(frame).await {
+                                trace_error!(e = err.to_string(); "failed to send data frame in quic");
+                            }
+                        }
+                        Err(err) => {
+                            trace_error!("failed to parse data frame: {:?}", err);
+                            tx.stop_stream(h3::error::Code::H3_INTERNAL_ERROR);
+                            break;
+                        }
+                    }
+                } else if body_frame.is_trailers() {
+                    match body_frame.into_trailers() {
+                        Ok(frame) => {
+                            if let Err(err) = tx.send_trailers(frame).await {
+                                trace_error!(e = err.to_string(); "failed to send trailers frame in quic");
+                            }
+                        }
+                        Err(err) => {
+                            trace_error!("failed to parse trailers frame: {:?}", err);
+                            tx.stop_stream(h3::error::Code::H3_INTERNAL_ERROR);
+                            break;
+                        }
+                    }
+                } else {
+                    trace_error!("invalid body frame from body stream");
+                    tx.stop_stream(h3::error::Code::H3_INTERNAL_ERROR);
+                    break;
+                }
+            }
+            Err(err) => {
+                trace_error!(e = err.to_string(); "failed to read frame from body stream");
+                tx.stop_stream(h3::error::Code::H3_INTERNAL_ERROR);
+                break;
+            }
+        }
+    }
+    tx.finish().await?;
+    Ok(())
 }

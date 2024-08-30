@@ -12,6 +12,7 @@ use log::error;
 use rustls::pki_types;
 use rustls::ClientConfig;
 use rustls::ServerConfig;
+use tokio_rustls::TlsAcceptor;
 use tokio_rustls::TlsConnector;
 
 use crate::client::Request;
@@ -235,8 +236,3 @@ struct Ws {}
 
 /// rpc
 struct Rpc {}
-
-struct TcpServer {
-    listen_addr: std::net::SocketAddr,
-    tls_cfg: ServerConfig,
-}

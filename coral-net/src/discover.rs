@@ -1,17 +1,19 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 use clap::Args;
 use coral_runtime::tokio::net::ToSocketAddrs;
-use log::{error, info, warn};
+use log::error;
+use log::info;
+use log::warn;
 
-use crate::{
-    error::{CoralRes, Error},
-    http::HttpSendPool,
-};
+use crate::error::CoralRes;
+use crate::error::Error;
+use crate::http::HttpSendPool;
 
-static REDIS_KEY_NOTIFY: &'static str = "svc_update";
+pub static REDIS_KEY_NOTIFY: &'static str = "svc_update";
 
-static REDIS_KEY_DISCOVER: &'static str = "svc_endpoints";
+pub static REDIS_KEY_DISCOVER: &'static str = "svc_endpoints";
 
 /// 127.0.0.1:9001,127.0.0.1:9002
 static ENDPOINTS_SPLIT_TAG: u8 = 44;
@@ -19,7 +21,7 @@ static ENDPOINTS_SPLIT_TAG: u8 = 44;
 #[derive(Args, Debug)]
 pub struct DiscoverParam {
     #[arg(long, help = "the uri of discover service")]
-    discover_uri: Option<String>,
+    pub discover_uri: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -89,9 +91,7 @@ where
 
 impl MiniRedis {
     pub async fn new<A>(addr: A) -> CoralRes<Self>
-    where
-        A: ToSocketAddrs,
-    {
+    where A: ToSocketAddrs {
         match mini_redis::Client::connect(addr).await {
             Ok(client) => Ok(Self {
                 client,

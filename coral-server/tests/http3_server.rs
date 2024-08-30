@@ -10,6 +10,7 @@ use bytes::Buf;
 use bytes::Bytes;
 use coral_runtime::tokio;
 use coral_util::tls::server_conf;
+use h3::error::ErrorLevel;
 use h3::quic::BidiStream;
 use h3::quic::RecvStream;
 use h3::server::RequestStream;
@@ -119,7 +120,7 @@ async fn server() {
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(
         quinn_proto::crypto::rustls::QuicServerConfig::try_from(tls_config).unwrap(),
     ));
-    let addr = SocketAddr::from(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 4433));
+    let addr = SocketAddr::from(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 4443));
     let endpoint = quinn::Endpoint::server(server_config, addr).unwrap();
 
     while let Some(new_conn) = endpoint.accept().await {
@@ -143,10 +144,10 @@ async fn server() {
 
                     Err(err) => {
                         println!("error on accept {}", err);
-                        // match err.get_error_level() {
-                        //     ErrorLevel::ConnectionError => break,
-                        //     ErrorLevel::StreamError => continue,
-                        // }
+                        match err.get_error_level() {
+                            ErrorLevel::ConnectionError => break,
+                            ErrorLevel::StreamError => continue,
+                        }
                     }
                 }
             }

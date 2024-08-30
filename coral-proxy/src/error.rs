@@ -49,6 +49,12 @@ pub enum Error {
 
     #[error("coral util module error")]
     CoralUtilErr(#[from] coral_util::error::Error),
+
+    #[error("coral net module error")]
+    CoralNetErr(#[from] coral_net::error::Error),
+
+    #[error("serde json error")]
+    JsonErr(#[from] serde_json::error::Error),
 }
 
 impl IntoResponse for Error {

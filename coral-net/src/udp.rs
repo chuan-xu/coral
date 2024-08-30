@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU8;
-use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -15,15 +15,34 @@ use rustls::ServerConfig;
 
 use crate::error::CoralRes;
 
-struct UdpServer {
-    listen_addr: std::net::SocketAddr,
-    tls_cfg: ServerConfig,
+pub struct H3 {
+    inner: h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>,
+    count: Arc<AtomicU32>,
+    state: Arc<AtomicU8>,
 }
 
-struct H3 {
-    inner: h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>,
-    count: Arc<AtomicUsize>,
-    state: Arc<AtomicU8>,
+impl Clone for H3 {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            count: self.count.clone(),
+            state: self.state.clone(),
+        }
+    }
+}
+
+impl crate::client::Statistics for H3 {
+    fn usage_count(&self) -> (u32, u8) {
+        (
+            self.count.load(Ordering::Acquire),
+            self.state.load(Ordering::Acquire),
+        )
+    }
+
+    fn usage_add(&self) -> crate::client::StatisticsGuard {
+        self.count.fetch_add(1, Ordering::AcqRel);
+        crate::client::StatisticsGuard(self.count.clone())
+    }
 }
 
 impl H3 {
@@ -47,7 +66,7 @@ impl H3 {
         });
         Ok(Self {
             inner: sender,
-            count: Arc::new(AtomicUsize::default()),
+            count: Arc::new(AtomicU32::default()),
             state: Arc::new(AtomicU8::default()),
         })
     }
@@ -105,7 +124,7 @@ where T: h3::quic::RecvStream
 }
 
 pin_project_lite::pin_project! {
-    struct H3ClientRecv<T> {
+    pub struct H3ClientRecv<T> {
         #[pin]
         inner: h3::client::RequestStream<T, Bytes>,
     }

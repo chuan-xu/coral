@@ -4,8 +4,8 @@ use axum::http::HeaderValue;
 use axum::routing::post;
 use bytes::Buf;
 use bytes::Bytes;
-use coral_net::server_conf;
-use coral_net::TlsParam;
+use coral_net::tls::server_conf;
+use coral_net::tls::TlsParam;
 fn get_config() -> rustls::ServerConfig {
     let param = TlsParam {
         tls_ca: Some(String::from("/root/certs/ca")),
