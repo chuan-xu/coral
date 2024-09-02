@@ -9,7 +9,9 @@ use axum::http::uri::PathAndQuery;
 use axum::routing::get;
 use axum::routing::post;
 use axum::Router;
+use bytes::Bytes;
 use coral_runtime::tokio;
+use http_body_util::Full;
 use hyper::body::Incoming;
 use hyper::header::CONNECTION;
 use hyper::header::SEC_WEBSOCKET_KEY;
@@ -83,29 +85,39 @@ fn map_req(mut req: hyper::Request<()>) -> hyper::Request<()> {
     req
 }
 
+pub type T = coral_net::udp::H3;
+pub type R = axum::body::Body;
+pub type H = coral_net::udp::H3ClientRecv<h3_quinn::RecvStream>;
+
 async fn server(args: &cli::Cli) -> CoralRes<()> {
-    let pool = coral_net::client::VecClients::<_, axum::body::Body, _>::default();
-    let confs = args.get_conn()?;
-    for conf in confs.iter() {
-        let tls_conf = coral_net::tls::client_conf(&coral_net::tls::TlsParam::new(
-            conf.ca.clone(),
-            conf.cert.clone(),
-            conf.key.clone(),
-        ))?;
-        let addr = SocketAddr::new(std::net::IpAddr::from_str(&conf.ip).unwrap(), conf.port);
-        let conn = coral_net::udp::H3::new(addr, &conf.domain, Arc::new(tls_conf)).await?;
-        pool.clone().add(conn).await;
-    }
+    let pool = coral_net::client::VecClients::<T, R, H>::default();
+    let map_req_fn = move |mut req: hyper::Request<()>| -> hyper::Request<()> {
+        let pool = pool.clone();
+        let path = req
+            .uri()
+            .path_and_query()
+            .map(|v| v.to_owned())
+            .unwrap_or(PathAndQuery::from_static("/"));
+        if let Ok(uri) = reset_uri_path(req.uri(), RESET_URI) {
+            *req.uri_mut() = uri;
+        }
+        req.extensions_mut().insert(pool);
+        req.extensions_mut().insert(path);
+        req
+    };
     let addr = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         args.server_param.port,
     );
     let app = axum::Router::new().route(RESET_URI, get(|| async { "hello" }));
     coral_net::server::ServerBuiler::new(addr, coral_net::tls::server_conf(&args.tls_param)?)
-        .add_backend(String::from("h3"), pool)
-        .udp_server::<_>(app, Some(map_req))
+        .udp_server::<_>(app, map_req_fn, None)
         .await?;
     Ok(())
+}
+
+async fn proxy(req: hyper::Request<Full<Bytes>>) -> &'static str {
+    "hello from proxy"
 }
 
 pub fn run() -> CoralRes<()> {

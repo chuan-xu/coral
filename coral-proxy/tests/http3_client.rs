@@ -14,7 +14,7 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
 
     let host = "server.test.com";
 
-    let addr = tokio::net::lookup_host((host, 4433))
+    let addr = tokio::net::lookup_host((host, 4443))
         .await
         .unwrap()
         .next()
@@ -44,7 +44,8 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
     let request = async move {
         println!("sending request ...");
 
-        let uri = "https://server.test.com:4433/test_http3".parse::<hyper::http::Uri>()?;
+        let uri = "https://server.test.com:4443/test_http3".parse::<hyper::http::Uri>()?;
+        // let uri = "/test_http3".parse::<hyper::http::Uri>()?;
 
         let req = hyper::http::Request::builder().uri(uri).body(())?;
         println!("###################################");
@@ -52,10 +53,12 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
         // sending request results in a bidirectional stream,
         // which is also used for receiving response
         let mut stream = send_request.send_request(req).await?;
-        stream
-            .send_data(bytes::Bytes::from("hello from client"))
-            .await
-            .unwrap();
+
+        // send empty body
+        // stream
+        //     .send_data(bytes::Bytes::from("hello from client"))
+        //     .await
+        //     .unwrap();
 
         // finish on the sending side
         stream.finish().await?;

@@ -19,12 +19,6 @@ pub struct Cli {
 
     #[command(flatten)]
     pub runtime_param: coral_runtime::RuntimeParam,
-
-    #[command(flatten)]
-    pub discover_param: coral_net::discover::DiscoverParam,
-
-    #[arg(long, help = "the uri of discover service")]
-    pub conn_conf: Option<String>,
 }
 
 impl Cli {
@@ -35,25 +29,14 @@ impl Cli {
         args.runtime_param.check()?;
         Ok(args)
     }
-
-    pub(crate) fn get_conn(&self) -> CoralRes<Vec<ConnConf>> {
-        if let Some(path) = self.conn_conf.as_ref() {
-            let mut fd = std::fs::File::open(path)?;
-            let mut buf = Vec::new();
-            fd.read_to_end(&mut buf)?;
-            let conn_conf: Vec<ConnConf> = serde_json::from_slice(buf.as_slice())?;
-            return Ok(conn_conf);
-        }
-        Ok(vec![])
-    }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct ConnConf {
-    pub ip: String,
-    pub port: u16,
-    pub domain: String,
-    pub ca: Option<String>,
-    pub cert: String,
-    pub key: String,
-}
+// #[derive(Deserialize, Debug)]
+// pub struct ConnConf {
+//     pub ip: String,
+//     pub port: u16,
+//     pub domain: String,
+//     pub ca: Option<String>,
+//     pub cert: String,
+//     pub key: String,
+// }

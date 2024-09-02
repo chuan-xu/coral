@@ -20,6 +20,12 @@ pub enum Error {
 
     #[error("failed to get local address")]
     LocalAddr(#[from] local_ip_address::Error),
+
+    #[error("invald net address")]
+    AddrErr(#[from] std::net::AddrParseError),
+
+    #[error("coral net module error")]
+    CoralNetErr(#[from] coral_net::error::Error),
 }
 
 #[derive(Debug)]

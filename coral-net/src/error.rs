@@ -61,6 +61,15 @@ pub enum Error {
     #[error("hyper http inner error")]
     HttpInner(#[from] hyper::http::Error),
 
+    #[error("http invalid uri")]
+    HttpUri(#[from] hyper::http::uri::InvalidUri),
+
+    #[error("http uri with invalid authority")]
+    UriAuthErr,
+
     #[error("tokio sync oneshot recv err")]
     OneshotRecv(#[from] coral_runtime::tokio::sync::oneshot::error::RecvError),
+
+    #[error("empty addr in lookup host")]
+    EmptyAddr,
 }

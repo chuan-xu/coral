@@ -8,6 +8,7 @@ use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
 use axum::Router;
 use coral_macro::trace_error;
+use coral_net::client::Request as CoralNetReq;
 use coral_runtime::tokio;
 use coral_runtime::tokio::sync::RwLock;
 use coral_util::tow::add_header_span_id;
@@ -316,7 +317,8 @@ pub fn http_reset(
     router.call(req)
 }
 
-pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
+pub async fn proxy(req: Request) -> CoralRes<hyper::Response<impl hyper::body::Body>> {
+    // get origin uri path
     let uri = req
         .extensions()
         .get::<PathAndQuery>()
@@ -325,15 +327,19 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
             Error::NoneOption("PathAndQuery ")
         })?
         .clone();
+    let headers = req.headers().clone();
+
+    // match req.extensions().get::<>() {
+    //     Some(_) => todo!(),
+    //     None => todo!(),
+    // }
+
+    // TODO: tmp use unwrap
     let pool = req
         .extensions()
-        .get::<ConnPool>()
-        .ok_or_else(|| {
-            trace_error!("PxyPool is none");
-            Error::NoneOption("PxyPool")
-        })?
-        .clone();
-    let headers = req.headers().clone();
+        .get::<coral_net::client::VecClients<crate::io::T, crate::io::R, crate::io::H>>()
+        .unwrap();
+
     let body = req.into_body().into_data_stream();
     let mut trans_builder = hyper::Request::builder().method("POST").uri(uri);
     let trans_headers = trans_builder.headers_mut().ok_or_else(|| {
@@ -347,14 +353,9 @@ pub async fn proxy(req: Request) -> CoralRes<hyper::Response<hyper::body::Incomi
         trace_error!(e = err.to_string(); "failed to build trans body");
         err
     })?;
-    let pxy_conn = pool.balance().await.ok_or_else(|| {
-        trace_error!("pxy_conn get balance is none");
-        Error::NoneOption("pxy_conn")
-    })?;
-    let (mut sender, _guard) = pxy_conn.get_sender();
-    let rsp = sender.send_request(trans_req).await.map_err(|err| {
-        trace_error!(e = err.to_string(); "Forwarding request failed");
-        err
-    })?;
+
+    // TODO
+    let (mut sender, _guard) = pool.load_balance().await?.unwrap();
+    let rsp = sender.send(trans_req).await?;
     Ok(rsp)
 }

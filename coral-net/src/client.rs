@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::str::FromStr;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
@@ -105,5 +106,34 @@ where
     pub async fn add(self, conn: T) {
         let mut pool = self.inner.write().await;
         pool.push(conn);
+    }
+}
+
+pub async fn lookup_host(host: &str) -> CoralRes<(std::net::SocketAddr, String)> {
+    match host.starts_with("http") {
+        true => {
+            let uri = hyper::Uri::from_str(host)?;
+            let auth = uri.authority().ok_or(crate::error::Error::UriAuthErr)?;
+            Ok((
+                tokio::net::lookup_host(auth.as_str().to_owned())
+                    .await?
+                    .next()
+                    .ok_or(crate::error::Error::EmptyAddr)?,
+                auth.host().to_owned(),
+            ))
+        }
+        false => {
+            let (domain, _) = host
+                .split_once(":")
+                .ok_or(crate::error::Error::UriAuthErr)?;
+
+            Ok((
+                tokio::net::lookup_host(host)
+                    .await?
+                    .next()
+                    .ok_or(crate::error::Error::EmptyAddr)?,
+                domain.to_owned(),
+            ))
+        }
     }
 }
