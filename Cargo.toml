@@ -31,9 +31,9 @@ core_affinity = "0.8"
 crossbeam-channel = "0.5"
 fastrace = { version = "0.7", features = ["enable"] }
 futures = "0.3"
-h3 = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "5121da616964e7e44906b1e8b7cea766b5088a3f"}
+h3 = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "6bef8005f87137a4b7cf01d5f0f7ed86f1939cd1"}
 # h3-quinn = "0.0.7"
-h3-quinn = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "5121da616964e7e44906b1e8b7cea766b5088a3f"}
+h3-quinn = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "6bef8005f87137a4b7cf01d5f0f7ed86f1939cd1"}
 http-body = "1.0.1"
 http-body-util = "0.1"
 hyper = { version = "1.4.0", features = ["full"] }

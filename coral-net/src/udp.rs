@@ -210,13 +210,18 @@ unsafe impl<T> Sync for H3ClientRecv<T> {}
 impl hyper::body::Body for H3ClientRecv<h3_quinn::RecvStream> {
     type Data = Bytes;
 
-    type Error = String;
+    type Error = h3::Error;
 
     fn poll_frame(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
         let mut this = self.project();
+        match futures::ready!(this.inner.poll_recv_data(cx))? {
+            Some(_) => todo!(),
+            None => {}
+        }
+
         todo!()
     }
 }
