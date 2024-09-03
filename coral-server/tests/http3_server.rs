@@ -1,7 +1,6 @@
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::routing::post;
@@ -9,14 +8,12 @@ use axum::Router;
 use bytes::Buf;
 use bytes::Bytes;
 use coral_runtime::tokio;
-use coral_util::tls::server_conf;
 use h3::error::ErrorLevel;
 use h3::quic::BidiStream;
 use h3::quic::RecvStream;
 use h3::server::RequestStream;
 use hyper::Request;
 use tower::Service;
-use tower::ServiceExt;
 
 async fn hand() -> &'static str {
     "hello"
@@ -110,13 +107,12 @@ where T: BidiStream<Bytes> + 'static {
 }
 
 async fn server() {
-    let param = coral_util::cli::CommParam {
-        cache_addr: None,
-        ca_dir: Some(String::from("/root/certs/ca")),
-        certificate: String::from("/root/certs/server.crt"),
-        private_key: String::from("/root/certs/server.key"),
+    let param = coral_net::tls::TlsParam {
+        tls_ca: Some(String::from("/root/certs/ca")),
+        tls_cert: String::from("/root/certs/server.crt"),
+        tls_key: String::from("/root/certs/server.key"),
     };
-    let tls_config = server_conf(&param).unwrap();
+    let tls_config = coral_net::tls::server_conf(&param).unwrap();
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(
         quinn_proto::crypto::rustls::QuicServerConfig::try_from(tls_config).unwrap(),
     ));

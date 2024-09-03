@@ -23,5 +23,8 @@ cd $SCRIPT_DIR;
 
 cargo build $1
 
+echo $CORAL_PROXY
+echo $CORAL_SERVER
+
 cp $CORAL_PROXY $BIN_DIR
 cp $CORAL_SERVER $BIN_DIR

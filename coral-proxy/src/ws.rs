@@ -40,7 +40,7 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>, addr: SocketAddr) {
                         if let Err(e) = outgoing.send(msg).await {}
                         if let Err(e) = outgoing.flush().await {}
                     }
-                    Err(err) => error!(e = err.to_string(); "failed to receive websocket mes"),
+                    Err(err) => error!(e = format!("{:?}", err); "failed to receive websocket mes"),
                 }
             }
             // incoming
@@ -50,7 +50,7 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>, addr: SocketAddr) {
             // incoming.forward(outgoing).await.unwrap();
         }
         Err(err) => {
-            error!(e = err.to_string(); "fail to upgrade in websocket stream");
+            error!(e = format!("{:?}", err); "fail to upgrade in websocket stream");
         }
     }
 }

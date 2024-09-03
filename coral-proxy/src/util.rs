@@ -38,7 +38,7 @@ pub fn reset_uri_path(uri: &Uri, mod_path: &str) -> CoralRes<Uri> {
         scheme += mod_path;
         let nuri = hyper::Uri::try_from(scheme).map_err(|err| {
             error!(
-                e = err.to_string(),
+                e = format!("{:?}", err),
                 scheme = scheme_str,
                 authority = authority;
                 "failed to parse scheme"

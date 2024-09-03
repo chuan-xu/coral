@@ -47,5 +47,5 @@ pub fn app() -> axum::Router {
         .route("/heartbeat", post(heartbeat))
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))
-        .layer(coral_util::tow::TraceLayer::default())
+    // .layer(coral_util::tow::TraceLayer::default())
 }

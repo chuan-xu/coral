@@ -59,7 +59,7 @@ where
     let (send, conn) = socket;
     tokio::spawn(async move {
         if let Err(err) = conn.await {
-            error!(e = err.to_string(); "http2 client disconnect");
+            error!(e = format!("{:?}", err); "http2 client disconnect");
         }
     });
     Ok(send)
@@ -278,7 +278,7 @@ where T: HttpSend + Default + Send + Sync + 'static
                 }
             }
             Err(err) => {
-                error!(e = err.to_string(); "failed to new http send handle");
+                error!(e = format!("{:?}", err); "failed to new http send handle");
             }
         }
     }

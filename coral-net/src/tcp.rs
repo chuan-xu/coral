@@ -76,7 +76,7 @@ where
             .await?;
         tokio::spawn(async move {
             if let Err(err) = conn.await {
-                error!(e = err.to_string(); "http1 client disconnect");
+                error!(e = format!("{:?}", err); "http1 client disconnect");
             }
         });
         Ok(Self {
@@ -148,7 +148,7 @@ where
             .await?;
         tokio::spawn(async move {
             if let Err(err) = conn.await {
-                error!(e = err.to_string(); "http2 client disconnect");
+                error!(e = format!("{:?}", err); "http2 client disconnect");
             }
         });
         Ok(Self {

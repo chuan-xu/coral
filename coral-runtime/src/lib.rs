@@ -16,7 +16,7 @@ pub fn runtime(
     param: &RuntimeParam,
     th_name_pre: &'static str,
 ) -> Result<tokio::runtime::Runtime, Error> {
-    let cores = cpu_cores(param.cpui, param.nums)?;
+    let cores = cpu_cores(param.cpui, param.nums + 1)?;
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(param.nums)
         .enable_all()

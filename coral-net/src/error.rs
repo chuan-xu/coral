@@ -72,4 +72,7 @@ pub enum Error {
 
     #[error("empty addr in lookup host")]
     EmptyAddr,
+
+    #[error("missing router")]
+    MissRouter,
 }

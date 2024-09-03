@@ -12,7 +12,6 @@ axum = { workspace = true, features = ["http2", "multipart", "original-uri", "to
 clap.workspace = true
 coral-log.workspace = true
 coral-runtime.workspace = true
-coral-util.workspace = true
 coral-net.workspace = true
 futures.workspace = true
 h3.workspace = true
@@ -21,12 +20,15 @@ hyper = { workspace = true, features = ["full"] }
 hyper-util = { workspace = true, features = ["full"] }
 http-body.workspace = true
 http-body-util.workspace = true
-local-ip-address.workspace = true
+# local-ip-address.workspace = true
 log = { workspace = true }
-pin-project-lite.workspace = true
 quinn = { workspace = true, default-features = false, features = ["platform-verifier", "ring", "runtime-tokio", "rustls"]}
 quinn-proto = { workspace = true, default-features =  false, features = ["rustls", "ring"]}
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tower = { workspace = true, features = ["full"] }
+
+
+[dev-dependencies]
+pin-project-lite.workspace = true

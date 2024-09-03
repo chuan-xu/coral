@@ -69,7 +69,7 @@ where
                     warn!("{} is empty", REDIS_KEY_DISCOVER);
                 }
                 Err(err) => {
-                    error!(e = err.to_string(); "failed to get {}", REDIS_KEY_DISCOVER);
+                    error!(e = format!("{:?}", err); "failed to get {}", REDIS_KEY_DISCOVER);
                 }
             }
             if let Some(subscriber) = self.subscriber.as_mut() {
@@ -81,7 +81,7 @@ where
                         warn!("subscriber message is empty");
                     }
                     Err(err) => {
-                        error!(e = err.to_string(); "failed to subscriber get next message");
+                        error!(e = format!("{:?}", err); "failed to subscriber get next message");
                     }
                 }
             }
@@ -98,7 +98,7 @@ impl MiniRedis {
                 subscriber: None,
             }),
             Err(err) => {
-                error!(e = err.to_string(); "failed to connect mini redis");
+                error!(e = format!("{:?}", err); "failed to connect mini redis");
                 Err(Error::DiscoverConnErr)
             }
         }
@@ -117,12 +117,12 @@ impl MiniRedis {
                         Ok(())
                     }
                     Err(err) => {
-                        error!(e = err.to_string(); "failed to mini_redis client subscribe");
+                        error!(e = format!("{:?}", err); "failed to mini_redis client subscribe");
                         Err(Error::DiscoverSubscribeErr)
                     }
                 },
                 Err(err) => {
-                    error!(e = err.to_string(); "failed to mini_redis client connect");
+                    error!(e = format!("{:?}", err); "failed to mini_redis client connect");
                     Err(Error::DiscoverConnErr)
                 }
             }
@@ -135,7 +135,7 @@ impl MiniRedis {
         match self.client.get(key).await {
             Ok(val) => Ok(val),
             Err(err) => {
-                error!(e = err.to_string(); "failed to get mini redis value");
+                error!(e = format!("{:?}", err); "failed to get mini redis value");
                 Err(Error::DiscoverGetErr)
             }
         }
@@ -145,7 +145,7 @@ impl MiniRedis {
         match self.client.set(key, value).await {
             Ok(_) => Ok(()),
             Err(err) => {
-                error!(e = err.to_string(); "failed to set mini redis value");
+                error!(e = format!("{:?}", err); "failed to set mini redis value");
                 Err(Error::DiscoverSetErr)
             }
         }
@@ -155,7 +155,7 @@ impl MiniRedis {
         match self.client.publish(channel, data).await {
             Ok(_) => Ok(()),
             Err(err) => {
-                error!(e = err.to_string(); "failed to publish by mini redis client");
+                error!(e = format!("{:?}", err); "failed to publish by mini redis client");
                 Err(Error::DiscoverPublishErr)
             }
         }
