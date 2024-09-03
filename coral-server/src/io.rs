@@ -112,7 +112,7 @@ async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send +
 ) -> CoralRes<()> {
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     let (addr, domain) = coral_net::client::lookup_host(&service_address).await?;
-    let mut sender = h3_server.create_h3_client(addr, &domain).await?;
+    let mut sender = h3_server.create_h3_client(addr, &domain, true).await?;
     let req = hyper::Request::builder()
         .method("POST")
         .uri(&service_address)

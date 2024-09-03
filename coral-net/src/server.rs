@@ -77,7 +77,8 @@ pub struct H1_2<A> {
 }
 
 impl<A> H1_2<A>
-where A: ToSocketAddrs + Clone
+where
+    A: ToSocketAddrs + Clone,
 {
     async fn bind(acceptor: TlsAcceptor, stream: TcpStream, inject: Inject) {
         let addr = inject.peer_addr.clone();
@@ -110,7 +111,8 @@ where A: ToSocketAddrs + Clone
 
 #[async_trait::async_trait]
 impl<A> HttpServ for H1_2<A>
-where A: ToSocketAddrs + Clone + Send + Sync + 'static
+where
+    A: ToSocketAddrs + Clone + Send + Sync + 'static,
 {
     async fn run(self, router: axum::Router) -> CoralRes<()> {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
@@ -143,7 +145,8 @@ unsafe impl<T> Send for H3RecvStream<T> {}
 unsafe impl<T> Sync for H3RecvStream<T> {}
 
 impl<T> hyper::body::Body for H3RecvStream<T>
-where T: RecvStream
+where
+    T: RecvStream,
 {
     type Data = Bytes;
 
@@ -198,7 +201,9 @@ async fn http_hand(mut req: axum::extract::Request) {
 
 impl H3 {
     async fn bind<T>(req: hyper::Request<()>, stream: RequestStream<T, Bytes>, mut inject: Inject)
-    where T: BidiStream<Bytes> + 'static {
+    where
+        T: BidiStream<Bytes> + 'static,
+    {
         let router = inject.router.as_mut().unwrap();
         let (mut tx, rx) = stream.split();
         // FIXME: handle error
@@ -471,27 +476,26 @@ pub struct H3Server<F> {
 }
 
 impl<F> H3Server<F>
-where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static
+where
+    F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static,
 {
     pub async fn create_h3_client(
         self,
         peer_addr: SocketAddr,
         domain: &str,
+        keep_server: bool,
     ) -> CoralRes<crate::udp::H3Sender> {
         let conn = self.endpoints.connect(peer_addr, domain)?.await?;
-        // tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-        let (mut driver, sender) = h3::client::new(h3_quinn::Connection::new(conn)).await?;
-        // let t = sender.clone();
-        tokio::spawn(async move {
-            // let c = t;
-            if let Err(err) = futures::future::poll_fn(|cx| driver.poll_close(cx)).await {
-                error!(e = format!("{:?}", err); "failed to run quic driver");
-            } else {
-                println!("=====================");
-            }
-        });
-        // Ok(crate::udp::H3::new_with_sender(sender))
+        let (mut driver, sender) = h3::client::new(h3_quinn::Connection::new(conn.clone())).await?;
+        if keep_server {
+            tokio::spawn(self.quic_server(conn));
+        } else {
+            tokio::spawn(async move {
+                if let Err(err) = futures::future::poll_fn(|cx| driver.poll_close(cx)).await {
+                    error!(e = format!("{:?}", err); "failed to run quic driver");
+                }
+            });
+        }
         Ok(sender)
     }
 
@@ -500,16 +504,7 @@ where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 's
             let this = self.clone();
             tokio::spawn(async move {
                 match new_conn.await {
-                    Ok(conn) => {
-                        match h3::server::Connection::new(h3_quinn::Connection::new(conn.clone()))
-                            .await
-                        {
-                            Ok(h3_conn) => this.quic_server(h3_conn).await,
-                            Err(err) => {
-                                error!(e = format!("{:?}", err); "failed to establish h3 connection");
-                            }
-                        }
-                    }
+                    Ok(conn) => this.quic_server(conn).await,
                     Err(err) => {
                         error!(e = format!("{:?}", err); "failed to finish quinn new connection in async");
                     }
@@ -519,30 +514,35 @@ where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 's
         Ok(())
     }
 
-    async fn quic_server(self, mut h3_conn: h3::server::Connection<h3_quinn::Connection, Bytes>) {
-        loop {
-            match h3_conn.accept().await {
-                Ok(Some((mut req, stream))) => {
-                    // req.extensions_mut().insert(conn.clone());
-                    let map_req_fn = self.map_req_fn.clone();
-                    let req = map_req_fn(req);
-                    let router = self.router.clone();
-                    tokio::spawn(quic_handle_request(req, stream, router));
-                }
-                Ok(None) => {
-                    info!("disconnect");
-                    break;
-                }
-                Err(err) => match err.get_error_level() {
-                    h3::error::ErrorLevel::ConnectionError => {
+    async fn quic_server(self, conn: quinn::Connection) {
+        match h3::server::Connection::new(h3_quinn::Connection::new(conn.clone())).await {
+            Ok(mut h3_conn) => loop {
+                match h3_conn.accept().await {
+                    Ok(Some((mut req, stream))) => {
+                        req.extensions_mut().insert(conn.clone());
+                        let map_req_fn = self.map_req_fn.clone();
+                        let req = map_req_fn(req);
+                        let router = self.router.clone();
+                        tokio::spawn(quic_handle_request(req, stream, router));
+                    }
+                    Ok(None) => {
                         info!("disconnect");
                         break;
                     }
-                    h3::error::ErrorLevel::StreamError => {
-                        error!(e = format!("{:?}", err); "failed to h3 connection accept");
-                        continue;
-                    }
-                },
+                    Err(err) => match err.get_error_level() {
+                        h3::error::ErrorLevel::ConnectionError => {
+                            info!("disconnect");
+                            break;
+                        }
+                        h3::error::ErrorLevel::StreamError => {
+                            error!(e = format!("{:?}", err); "failed to h3 connection accept");
+                            continue;
+                        }
+                    },
+                }
+            },
+            Err(err) => {
+                error!(e = format!("{:?}", err); "failed to establish h3 connection");
             }
         }
     }
@@ -569,7 +569,9 @@ impl ServerBuiler {
     }
 
     pub fn h3_server<F>(mut self, map_req_fn: F) -> CoralRes<H3Server<F>>
-    where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static {
+    where
+        F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static,
+    {
         let serv_cfg = quinn::ServerConfig::with_crypto(Arc::new(
             quinn_proto::crypto::rustls::QuicServerConfig::try_from(self.server_tls.clone())?,
         ));
@@ -591,11 +593,13 @@ impl ServerBuiler {
     }
 
     pub async fn tcp_server<F>(self, router: axum::Router, map_req: Option<F>) -> CoralRes<()>
-    where F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming>
+    where
+        F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming>
             + Clone
             + Send
             + Sync
-            + 'static {
+            + 'static,
+    {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
         let tls_acceptor = TlsAcceptor::from(Arc::new(self.server_tls));
         loop {
