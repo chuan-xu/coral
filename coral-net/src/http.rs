@@ -16,7 +16,6 @@ use rustls::pki_types;
 use rustls::ClientConfig;
 use tokio_rustls::client::TlsStream;
 
-use crate::discover::Discover;
 use crate::error::CoralRes;
 use crate::error::Error;
 

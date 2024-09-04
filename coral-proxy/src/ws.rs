@@ -24,7 +24,7 @@ use crate::error::CoralRes;
 use crate::error::Error;
 
 // TODO
-pub async fn websocket_conn_hand(mut req: Request<Incoming>, addr: SocketAddr) {
+pub async fn websocket_conn_hand(mut req: Request<Incoming>) {
     match hyper::upgrade::on(&mut req).await {
         Ok(io) => {
             let stream = TokioIo::new(io);

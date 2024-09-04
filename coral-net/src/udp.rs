@@ -1,18 +1,13 @@
-use std::net::SocketAddr;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use bytes::Buf;
 use bytes::Bytes;
 use coral_macro::trace_error;
 use coral_runtime::tokio;
-use h3::quic::RecvStream;
 use http_body_util::BodyStream;
 use hyper::Version;
-use log::error;
-use rustls::ClientConfig;
 use tokio_stream::StreamExt;
 
 use crate::error::CoralRes;
@@ -21,6 +16,7 @@ pub type H3Sender = h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>;
 
 pub struct H3 {
     inner: h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>,
+    authority: Arc<String>,
     count: Arc<AtomicU32>,
     state: Arc<AtomicU8>,
 }
@@ -29,6 +25,7 @@ impl Clone for H3 {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            authority: self.authority.clone(),
             count: self.count.clone(),
             state: self.state.clone(),
         }
@@ -49,68 +46,11 @@ impl crate::client::Statistics for H3 {
     }
 }
 
-pub async fn create_sender_by_conf(
-    addr: SocketAddr,
-    domain: &str,
-    tls_conf: Arc<ClientConfig>,
-    run_driver: bool,
-) -> CoralRes<H3Sender> {
-    let client_conf = quinn::ClientConfig::new(Arc::new(
-        quinn::crypto::rustls::QuicClientConfig::try_from(tls_conf)?,
-    ));
-    let mut client_endpoint = h3_quinn::quinn::Endpoint::client("[::]:0".parse()?)?;
-    client_endpoint.set_default_client_config(client_conf);
-    let conn = client_endpoint.connect(addr, domain)?.await?;
-    create_sender_by_connection(conn, run_driver).await
-}
-
-pub async fn create_sender_by_endpoint(
-    endpoint: quinn::Endpoint,
-    addr: SocketAddr,
-    domain: &str,
-    run_driver: bool,
-) -> CoralRes<H3Sender> {
-    let conn = endpoint.connect(addr, domain)?.await?;
-    create_sender_by_connection(conn, run_driver).await
-}
-
-pub async fn create_sender_by_connection(
-    conn: quinn::Connection,
-    run_driver: bool,
-) -> CoralRes<H3Sender> {
-    let quinn = h3_quinn::Connection::new(conn);
-    let (mut driver, sender) = h3::client::new(quinn).await.unwrap();
-    if run_driver {
-        tokio::spawn(async move {
-            if let Err(err) = futures::future::poll_fn(|cx| driver.poll_close(cx)).await {
-                error!(e = format!("{:?}", err); "failed to run quic driver");
-            }
-        });
-    }
-    Ok(sender)
-}
-
 impl H3 {
-    pub async fn new_by_conf(
-        addr: SocketAddr,
-        domain: &str,
-        tls_conf: Arc<ClientConfig>,
-        run_driver: bool,
-    ) -> CoralRes<Self> {
-        Ok(Self::new_with_sender(
-            create_sender_by_conf(addr, domain, tls_conf, run_driver).await?,
-        ))
-    }
-
-    pub async fn new_by_connection(conn: quinn::Connection, run_driver: bool) -> CoralRes<Self> {
-        Ok(Self::new_with_sender(
-            create_sender_by_connection(conn, run_driver).await?,
-        ))
-    }
-
-    pub fn new_with_sender(inner: H3Sender) -> Self {
+    pub fn new_with_sender(inner: H3Sender, authority: String) -> Self {
         Self {
             inner,
+            authority: Arc::new(authority),
             count: Arc::new(AtomicU32::default()),
             state: Arc::new(AtomicU8::default()),
         }
@@ -122,7 +62,6 @@ async fn h3_send_body<R>(
     mut tx: h3::client::RequestStream<h3_quinn::SendStream<Bytes>, Bytes>,
 ) where
     R: hyper::body::Body<Data = Bytes> + Send + Unpin + 'static,
-    // R::Data: Send + std::fmt::Debug,
     R::Error: Into<Box<dyn std::error::Error + Send + Sync>> + std::fmt::Display,
 {
     while let Some(frame) = body.next().await {
@@ -178,8 +117,6 @@ unsafe impl<T> Sync for H3ClientRecv<T> {}
 impl hyper::body::Body for H3ClientRecv<h3_quinn::RecvStream> {
     type Data = Bytes;
 
-    // type Error = h3::Error;
-
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
     fn poll_frame(
@@ -211,9 +148,16 @@ where
         &mut self,
         req: hyper::Request<R>,
     ) -> CoralRes<hyper::Response<H3ClientRecv<h3_quinn::RecvStream>>> {
+        let uri_bd = hyper::Uri::builder()
+            .scheme("https")
+            .authority(self.authority.as_str());
+        let uri = match req.uri().path_and_query() {
+            Some(path_query) => uri_bd.path_and_query(path_query.to_owned()).build(),
+            None => uri_bd.build(),
+        }?;
         let mut request = hyper::http::Request::builder()
             .method(req.method())
-            .uri(req.uri())
+            .uri(uri)
             .version(Version::HTTP_3)
             .body(())?;
         let version = req.version();

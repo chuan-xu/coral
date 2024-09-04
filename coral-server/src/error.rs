@@ -20,6 +20,9 @@ pub enum Error {
 
     #[error("coral net module error")]
     CoralNetErr(#[from] coral_net::error::Error),
+
+    #[error("h3 error")]
+    H3Err(#[from] h3::Error),
 }
 
 #[derive(Debug)]

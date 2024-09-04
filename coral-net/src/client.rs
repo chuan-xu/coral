@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::str::FromStr;
 use std::sync::atomic::AtomicU32;
-use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
