@@ -29,12 +29,6 @@ pub enum Error {
     #[error("hyper http inner error")]
     HttpInner(#[from] hyper::http::Error),
 
-    #[error("heartbeat failed")]
-    HeartBeatFailed,
-
-    #[error("failed to convert header to str")]
-    HeaderToStrErr(#[from] ToStrError),
-
     #[error("invalid uri")]
     InvalidUri(#[from] InvalidUri),
 
@@ -44,14 +38,23 @@ pub enum Error {
     #[error("coral log error")]
     CoralLogErr(#[from] coral_log::error::Error),
 
-    #[error("failed to service discovery")]
-    DiscoverErr,
-
     #[error("coral net module error")]
     CoralNetErr(#[from] coral_net::error::Error),
 
     #[error("serde json error")]
     JsonErr(#[from] serde_json::error::Error),
+
+    #[error("miss conn pool")]
+    MissPool,
+
+    #[error("conn pool is empty")]
+    EmptyPool,
+
+    #[error("axum inner error")]
+    AxumErr(#[from] axum::Error),
+
+    #[error("utf8 error")]
+    Utf8Err(#[from] std::str::Utf8Error),
 }
 
 impl IntoResponse for Error {

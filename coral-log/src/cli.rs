@@ -31,7 +31,6 @@ impl LogParam {
             }
         }
         self.set_log()?;
-        // self.set_traces();
         Ok(())
     }
 

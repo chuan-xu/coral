@@ -2,10 +2,10 @@ use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
 use axum::routing::post;
 use coral_macro::trace_error;
-use coral_macro::trace_info;
 use coral_net::client::Request as CoralNetReq;
 use coral_net::midware::add_header_span_id;
 use http_body_util::BodyExt;
+use log::info;
 
 use crate::error::CoralRes;
 use crate::error::Error;
@@ -30,18 +30,11 @@ async fn proxy(
     let headers = req.headers().clone();
     let method = req.method().clone();
 
-    // TODO: tmp use unwrap
     let pool = req
         .extensions()
         .get::<coral_net::client::VecClients<crate::io::T, crate::io::R, crate::io::H>>()
-        .unwrap()
+        .ok_or(crate::error::Error::MissPool)?
         .clone();
-
-    // let uri = hyper::Uri::builder()
-    //     .scheme("https")
-    //     .authority(req.uri().authority().unwrap().clone())
-    //     .path_and_query(path_query)
-    //     .build()?;
 
     let body = req.into_body().into_data_stream();
     let mut trans_builder = hyper::Request::builder()
@@ -60,25 +53,28 @@ async fn proxy(
         err
     })?;
 
-    let (mut sender, _guard) = pool.load_balance().await?.unwrap();
+    let (mut sender, _guard) = pool
+        .load_balance()
+        .await?
+        .ok_or(crate::error::Error::EmptyPool)?;
     let rsp = sender.send(trans_req).await?;
     Ok(rsp)
 }
 
 async fn recv_endpoints(req: Request) -> CoralRes<()> {
-    trace_info!("new endpoint conn");
+    info!("new endpoint conn");
     let pool = req
         .extensions()
         .get::<coral_net::client::VecClients<crate::io::T, crate::io::R, crate::io::H>>()
-        .unwrap()
+        .ok_or(crate::error::Error::MissPool)?
         .clone();
     let sender = req
         .extensions()
         .get::<h3::client::SendRequest<h3_quinn::OpenStreams, bytes::Bytes>>()
-        .unwrap()
+        .ok_or(crate::error::Error::NoneOption("miss h3 handle"))?
         .clone();
-    let domain_byte = req.into_body().collect().await.unwrap().to_bytes();
-    let domain = std::str::from_utf8(&domain_byte).unwrap().to_owned();
+    let domain_byte = req.into_body().collect().await?.to_bytes();
+    let domain = std::str::from_utf8(&domain_byte)?.to_owned();
     pool.add(coral_net::udp::H3::new_with_sender(sender, domain))
         .await;
     Ok(())
@@ -90,11 +86,14 @@ pub static RECV_ENDPOINTS: &'static str = "/coral-proxy-endpoints";
 pub fn app_h3() -> axum::Router {
     let router: axum::Router = axum::Router::new()
         .route(RESET_URI, post(proxy))
-        .route(RECV_ENDPOINTS, post(recv_endpoints));
+        .route(RECV_ENDPOINTS, post(recv_endpoints))
+        .layer(coral_net::midware::TraceLayer::default());
     router
 }
 
 pub fn app_h2() -> axum::Router {
-    let router: axum::Router = axum::Router::new().route(RESET_URI, post(proxy));
+    let router: axum::Router = axum::Router::new()
+        .route(RESET_URI, post(proxy))
+        .layer(coral_net::midware::TraceLayer::default());
     router
 }

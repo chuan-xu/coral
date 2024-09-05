@@ -77,60 +77,8 @@ where T: RecvStream
     fn size_hint(&self) -> http_body::SizeHint {
         // FIXME: specify size
         http_body::SizeHint::default()
-        // let mut hint = http_body::SizeHint::default();
-        // hint.set_exact((self.length - self.rsize) as u64);
-        // hint
     }
 }
-
-// fn tcp_handle_request<F>(
-//     mut req: hyper::Request<hyper::body::Incoming>,
-//     map_req: Option<F>,
-// ) -> axum::routing::future::RouteFuture<std::convert::Infallible>
-// where
-//     F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming>,
-// {
-// let mut router = ext.router.clone();
-// if let Some(ends) = ext.backends.take() {
-//     req.extensions_mut().insert(ends);
-// }
-// if let Some(f) = map_req {
-//     router.call(f(req))
-// } else {
-//     router.call(req)
-// }
-
-// let headers = req.headers();
-
-// 判断是否是websocket连接
-// if headers
-//     .get(hyper::header::CONNECTION)
-//     .and_then(|v| v.to_str().ok())
-//     .map(|v| v.to_lowercase() == "upgrade")
-//     .unwrap_or(false)
-//     && headers
-//         .get(hyper::header::UPGRADE)
-//         .and_then(|v| v.to_str().ok())
-//         .map(|v| v.to_lowercase() == "websocket")
-//         .unwrap_or(false)
-//     && headers.get(hyper::header::SEC_WEBSOCKET_KEY).is_some()
-//     && req.method() == hyper::Method::GET
-// {
-//     let mut reqc = hyper::Request::<axum::body::Body>::default();
-//     *reqc.version_mut() = req.version();
-//     *reqc.headers_mut() = req.headers().clone();
-//     *(reqc.uri_mut()) = hyper::Uri::from_static("/reset_ws");
-//     // TODO
-//     // tokio::spawn(websocket_conn_hand(req, addr));
-//     router.call(reqc)
-// } else {
-//     if let Some(f) = map_req {
-//         router.call(f(req))
-//     } else {
-//         router.call(req)
-//     }
-// }
-// }
 
 async fn tcp_server<F>(
     acceptor: TlsAcceptor,
@@ -277,7 +225,8 @@ async fn quic_handle_request<U>(
             *new_req.headers_mut() = req.headers().clone();
             *new_req.extensions_mut() = req.extensions().clone();
             if let Err(err) =
-                quic_handle_response(&mut tx, router.call(new_req).await.unwrap()).await
+                // quic_handle_response(&mut tx, router.call(new_req).await.unwrap()).await
+                quic_handle_response(&mut tx, router.call(new_req)).await
             {
                 trace_error!(e = format!("{:?}", err);"faild to handle response in quic");
             }
@@ -290,11 +239,13 @@ async fn quic_handle_request<U>(
 
 async fn quic_handle_response<T>(
     tx: &mut RequestStream<T, Bytes>,
-    rsp: axum::response::Response,
+    // rsp: axum::response::Response,
+    rsp: RouteFuture<Infallible>,
 ) -> CoralRes<()>
 where
     T: h3::quic::SendStream<Bytes>,
 {
+    let rsp = rsp.await?;
     let mut parts = hyper::http::Response::builder()
         .status(rsp.status())
         .version(hyper::Version::HTTP_3)

@@ -4,6 +4,11 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::response::IntoResponse;
 use axum::routing::post;
+use coral_macro::trace_info;
+use coral_runtime::tokio;
+use fastrace::future::FutureExt;
+use fastrace::local::LocalSpan;
+use fastrace::Span;
 use http_body_util::BodyExt;
 use hyper::StatusCode;
 use log::info;
@@ -42,10 +47,49 @@ async fn benchmark() -> BenchmarkRes {
     BenchmarkRes {}
 }
 
+#[axum::debug_handler]
+async fn test_trace() -> &'static str {
+    trace_info!("enter test span handle");
+    {
+        let _span =
+            LocalSpan::enter_with_local_parent("test_span").with_property(|| ("lululu", "tody"));
+        parallel_job();
+    }
+    other_job().await;
+    "record trace"
+}
+
+fn parallel_job() -> Vec<tokio::task::JoinHandle<()>> {
+    let mut v = Vec::with_capacity(4);
+    for i in 0..4 {
+        v.push(tokio::spawn(
+            iter_job(i).in_span(Span::enter_with_local_parent("iter job")),
+        ));
+    }
+    v
+}
+
+async fn iter_job(iter: u64) {
+    std::thread::sleep(std::time::Duration::from_millis(iter * 10));
+    tokio::task::yield_now().await;
+    other_job().await;
+}
+
+#[fastrace::trace(enter_on_poll = true)]
+async fn other_job() {
+    for i in 0..20 {
+        if i == 10 {
+            tokio::task::yield_now().await;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 pub fn app() -> axum::Router {
     axum::Router::new()
         .route("/heartbeat", post(heartbeat))
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))
+        .route("/trace", post(test_trace))
         .layer(coral_net::midware::TraceLayer::default())
 }

@@ -24,53 +24,6 @@ use crate::util::reset_uri_path;
 use crate::util::WS_RESET_URI;
 use crate::ws::websocket_conn_hand;
 
-// fn handle_request(
-//     req: hyper::Request<Incoming>,
-//     pxy_pool: ConnPool,
-//     mut router: Router,
-//     addr: SocketAddr,
-// ) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
-//     let headers = req.headers();
-
-//     // 判断是否是websocket连接
-//     if headers
-//         .get(CONNECTION)
-//         .and_then(|v| v.to_str().ok())
-//         .map(|v| v.to_lowercase() == "upgrade")
-//         .unwrap_or(false)
-//         && headers
-//             .get(UPGRADE)
-//             .and_then(|v| v.to_str().ok())
-//             .map(|v| v.to_lowercase() == "websocket")
-//             .unwrap_or(false)
-//         && headers.get(SEC_WEBSOCKET_KEY).is_some()
-//         && req.method() == Method::GET
-//     {
-//         let mut reqc = Request::<Body>::default();
-//         *reqc.version_mut() = req.version();
-//         *reqc.headers_mut() = req.headers().clone();
-//         *(reqc.uri_mut()) = Uri::from_static(WS_RESET_URI);
-//         tokio::spawn(websocket_conn_hand(req, addr));
-//         router.call(reqc)
-//     } else {
-//         // http_reset(req, pxy_pool, router)
-//         router.call(req)
-//     }
-// }
-
-// fn map_req(mut req: hyper::Request<()>) -> hyper::Request<()> {
-//     let path = req
-//         .uri()
-//         .path_and_query()
-//         .map(|v| v.to_owned())
-//         .unwrap_or(PathAndQuery::from_static("/"));
-//     if let Ok(uri) = reset_uri_path(req.uri(), RESET_URI) {
-//         *req.uri_mut() = uri;
-//     }
-//     req.extensions_mut().insert(path);
-//     req
-// }
-
 pub type T = coral_net::udp::H3;
 pub type R = axum::body::Body;
 pub type H = coral_net::udp::H3ClientRecv<h3_quinn::RecvStream>;
@@ -136,6 +89,7 @@ fn map_req_h2(
 }
 
 async fn server(args: &cli::Cli) -> CoralRes<()> {
+    args.log_param.set_traces();
     let pool = coral_net::client::VecClients::<T, R, H>::default();
     let poolc = pool.clone();
     let map_req_fn_h3 =

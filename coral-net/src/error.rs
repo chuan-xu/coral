@@ -75,4 +75,7 @@ pub enum Error {
 
     #[error("missing router")]
     MissRouter,
+
+    #[error("infallible")]
+    Infallible(#[from] std::convert::Infallible),
 }

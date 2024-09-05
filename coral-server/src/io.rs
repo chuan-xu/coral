@@ -36,6 +36,7 @@ async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send +
 }
 
 async fn server(args: &cli::Cli) -> CoralRes<()> {
+    args.log_param.set_traces();
     let addr = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         args.server_param.port,
