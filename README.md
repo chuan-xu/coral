@@ -67,6 +67,27 @@ Options:
 
 ### tracing
 
+#### 日志记录 trace_id
+
+```rust
+use coral_macro::trace_error;
+use coral_macro::trace_warn;
+use coral_macro::trace_info;
+use coral_macro::trace_debug;
+use coral_macro::trace_trace;
+
+fn hand() -> Result<(), u8> {
+    Err(7)
+}
+
+fn main() {
+    if let Err(e) = hand() {
+        trace_error!("some err: {:?}", e);
+    }
+}
+
+```
+
 ![](/tests/jaeger.png "")
 ![](/tests/trace.png "")
 ![](/tests/graph.png "")
