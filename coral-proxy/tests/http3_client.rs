@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
+use coral_net::tls::client_conf;
 use coral_runtime::tokio;
 use coral_runtime::tokio::io::AsyncWriteExt;
-use coral_util::tls::client_conf;
 
 async fn client() -> Result<(), Box<dyn std::error::Error>> {
-    let param = coral_util::cli::CommParam {
-        cache_addr: None,
-        ca_dir: Some(String::from("/root/certs/ca")),
-        certificate: String::from("/root/certs/client.crt"),
-        private_key: String::from("/root/certs/client.key"),
+    let param = coral_net::tls::TlsParam {
+        tls_ca: Some(String::from("/root/certs/ca")),
+        tls_cert: String::from("/root/certs/client.crt"),
+        tls_key: String::from("/root/certs/client.key"),
     };
 
     let host = "server.test.com";

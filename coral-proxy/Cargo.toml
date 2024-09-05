@@ -16,7 +16,7 @@ coral-log.workspace = true
 coral-macro.workspace = true
 coral-net.workspace = true
 coral-runtime.workspace = true
-coral-util.workspace = true
+# coral-util.workspace = true
 fastrace = { workspace = true, features = ["enable"] }
 futures.workspace = true
 h3.workspace = true

@@ -10,8 +10,8 @@ use fastrace::prelude::*;
 use tower::Layer;
 use tower::Service;
 
-use super::consts::HTTP_HEADER_TRACE_ID;
-use crate::consts::HTTP_HEADER_SPAN_ID;
+use super::HTTP_HEADER_TRACE_ID;
+use crate::HTTP_HEADER_SPAN_ID;
 
 /// midware for add trace id
 #[derive(Clone)]

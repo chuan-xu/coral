@@ -47,9 +47,6 @@ pub enum Error {
     #[error("failed to service discovery")]
     DiscoverErr,
 
-    #[error("coral util module error")]
-    CoralUtilErr(#[from] coral_util::error::Error),
-
     #[error("coral net module error")]
     CoralNetErr(#[from] coral_net::error::Error),
 

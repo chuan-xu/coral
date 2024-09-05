@@ -6,7 +6,6 @@ members = [
   "coral-proxy",
   "coral-runtime",
   "coral-server",
-  "coral-util",
 ]
 
 [workspace.package]
@@ -26,7 +25,6 @@ coral-log = { path = "coral-log" }
 coral-macro = { path = "coral-macro" }
 coral-net = { path = "coral-net" }
 coral-runtime = { path = "coral-runtime" }
-coral-util = { path = "coral-util" }
 core_affinity = "0.8"
 crossbeam-channel = "0.5"
 fastrace = { version = "0.7", features = ["enable"] }

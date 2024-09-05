@@ -4,7 +4,7 @@ use axum::routing::post;
 use coral_macro::trace_error;
 use coral_macro::trace_info;
 use coral_net::client::Request as CoralNetReq;
-use coral_util::tow::add_header_span_id;
+use coral_net::midware::add_header_span_id;
 use http_body_util::BodyExt;
 
 use crate::error::CoralRes;

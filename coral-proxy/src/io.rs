@@ -1,10 +1,11 @@
+use std::convert::Infallible;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
 use axum::body::Body;
 use axum::extract::Request;
 use axum::http::uri::PathAndQuery;
-use axum::Router;
+use axum::routing::future::RouteFuture;
 use coral_runtime::tokio;
 use hyper::body::Incoming;
 use hyper::header::CONNECTION;
@@ -21,7 +22,6 @@ use crate::http::RECV_ENDPOINTS;
 use crate::http::RESET_URI;
 use crate::util::reset_uri_path;
 use crate::util::WS_RESET_URI;
-use crate::ws;
 use crate::ws::websocket_conn_hand;
 
 // fn handle_request(
@@ -95,7 +95,12 @@ fn map_req_h3(mut req: hyper::Request<()>, pool: Pool) -> hyper::Request<()> {
     req
 }
 
-fn map_req_h2(mut req: hyper::Request<Incoming>, pool: Pool) -> hyper::Request<Incoming> {
+fn map_req_h2(
+    mut req: hyper::Request<Incoming>,
+    pool: Pool,
+    mut router: axum::Router,
+) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
+    req.extensions_mut().insert(pool);
     let headers = req.headers();
     if headers
         .get(CONNECTION)
@@ -110,14 +115,23 @@ fn map_req_h2(mut req: hyper::Request<Incoming>, pool: Pool) -> hyper::Request<I
         && headers.get(SEC_WEBSOCKET_KEY).is_some()
         && req.method() == Method::GET
     {
-        let mut reqc = Request::<Incoming>::default();
+        let mut reqc = Request::<Body>::default();
         *reqc.version_mut() = req.version();
         *reqc.headers_mut() = req.headers().clone();
         *(reqc.uri_mut()) = Uri::from_static(WS_RESET_URI);
         tokio::spawn(websocket_conn_hand(req));
-        reqc
+        router.call(reqc)
     } else {
-        req
+        let path = req
+            .uri()
+            .path_and_query()
+            .map(|v| v.to_owned())
+            .unwrap_or(PathAndQuery::from_static("/"));
+        if let Ok(uri) = reset_uri_path(req.uri(), RESET_URI) {
+            *req.uri_mut() = uri;
+        }
+        req.extensions_mut().insert(path);
+        router.call(req)
     }
 }
 
@@ -143,7 +157,8 @@ async fn server(args: &cli::Cli) -> CoralRes<()> {
             error!(e = format!("{:?}", err); "failed to run h3 server");
         }
     });
-    let map_req_fn_h2 = move |req| -> hyper::Request<Incoming> { map_req_h2(req, pool.clone()) };
+    let map_req_fn_h2 =
+        move |req, router| -> RouteFuture<Infallible> { map_req_h2(req, pool.clone(), router) };
     Ok(coral_net::server::ServerBuiler::new(addr_h2, tls_conf)
         .set_router(crate::http::app_h2())
         .h2_server(Some(map_req_fn_h2))

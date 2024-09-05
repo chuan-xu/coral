@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -9,7 +10,6 @@ use log::warn;
 
 use crate::error::CoralRes;
 use crate::error::Error;
-use crate::http::HttpSendPool;
 
 pub static REDIS_KEY_NOTIFY: &'static str = "svc_update";
 

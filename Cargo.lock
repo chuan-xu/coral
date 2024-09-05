@@ -738,6 +738,7 @@ dependencies = [
  "tokio-rustls 0.26.0",
  "tokio-stream",
  "tower",
+ "uuid",
  "webpki-roots",
 ]
 
@@ -754,7 +755,6 @@ dependencies = [
  "coral-macro",
  "coral-net",
  "coral-runtime",
- "coral-util",
  "criterion",
  "fastrace",
  "futures",
@@ -814,28 +814,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tower",
-]
-
-[[package]]
-name = "coral-util"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "axum",
- "bytes",
- "clap",
- "coral-macro",
- "criterion",
- "fastrace",
- "log",
- "mini-redis",
- "rustls 0.23.12",
- "rustls-pemfile",
- "thiserror",
- "tokio",
- "tower",
- "uuid",
- "webpki-roots",
 ]
 
 [[package]]

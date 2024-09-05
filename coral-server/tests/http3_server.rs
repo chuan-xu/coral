@@ -25,12 +25,12 @@ fn run_router() -> Router {
 }
 
 // type h3_recv<T> = RequestStream<<T as BidiStream<Bytes>>::RecvStream, Bytes>;
-type h3_recv<T> = RequestStream<T, Bytes>;
+type H3Recv<T> = RequestStream<T, Bytes>;
 
 pin_project_lite::pin_project! {
     struct Recv<T> {
         #[pin]
-        inner: h3_recv<T>,
+        inner: H3Recv<T>,
     }
 }
 
@@ -65,20 +65,20 @@ where T: RecvStream
     }
 }
 
-async fn handle_request<T>(mut req: Request<()>, mut stream: RequestStream<T, Bytes>)
+async fn handle_request<T>(req: Request<()>, mut stream: RequestStream<T, Bytes>)
 where T: BidiStream<Bytes> + 'static {
     println!("method: {:?}", req.method());
     println!("header: {:?}", req.headers());
     println!("version: {:?}", req.version());
     println!("uri: {:?}", req.uri());
     // recv data
-    // while let Some(data) = stream.recv_data().await.unwrap() {
-    //     let cont = std::str::from_utf8(data.chunk()).unwrap();
-    //     println!("{:?}", cont);
-    // }
+    while let Some(data) = stream.recv_data().await.unwrap() {
+        let cont = std::str::from_utf8(data.chunk()).unwrap();
+        println!("{:?}", cont);
+    }
 
     // test split
-    let (mut send, mut recv) = stream.split();
+    let (mut send, recv) = stream.split();
     // while let Some(data) = recv.recv_data().await.unwrap() {
     //     let cont = std::str::from_utf8(data.chunk()).unwrap();
     //     println!("{:?}", cont);
@@ -90,7 +90,7 @@ where T: BidiStream<Bytes> + 'static {
     let rre = Recv { inner: recv };
     let r_req = Request::builder().body(rre).unwrap();
     let mut r = run_router();
-    let fut = r.call(r_req);
+    let _fut = r.call(r_req);
 
     // recv.c
 

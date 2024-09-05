@@ -1,7 +1,4 @@
-use std::io::Read;
-
 use clap::Parser;
-use serde::Deserialize;
 
 use crate::error::CoralRes;
 
@@ -30,13 +27,3 @@ impl Cli {
         Ok(args)
     }
 }
-
-// #[derive(Deserialize, Debug)]
-// pub struct ConnConf {
-//     pub ip: String,
-//     pub port: u16,
-//     pub domain: String,
-//     pub ca: Option<String>,
-//     pub cert: String,
-//     pub key: String,
-// }

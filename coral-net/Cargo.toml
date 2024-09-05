@@ -33,6 +33,7 @@ thiserror.workspace = true
 tokio-rustls = { workspace = true, default-features = false, features = ["tls12", "ring"]}
 tokio-stream = { workspace = true, default-features = false, features = ["full"] }
 tower = { workspace = true, features = ["full"] }
+uuid.workspace = true
 webpki-roots.workspace = true
 
 mini-redis = { git = "https://github.com/tokio-rs/mini-redis.git", recv = "e186482ca00f8d884ddcbe20417f3654d03315a4" }

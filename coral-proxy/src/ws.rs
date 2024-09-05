@@ -68,11 +68,11 @@ pub async fn websocket_upgrade_hand(req: Request) -> CoralRes<Response<Body>> {
     *res.version_mut() = req.version();
     res.headers_mut().append(
         CONNECTION,
-        HeaderValue::from_static(coral_util::consts::HTTP_HEADER_WEBSOCKET_CONNECTION),
+        HeaderValue::from_static(coral_net::HTTP_HEADER_WEBSOCKET_CONNECTION),
     );
     res.headers_mut().append(
         UPGRADE,
-        HeaderValue::from_static(coral_util::consts::HTTP_HEADER_WEBSOCKET_UPGRADE),
+        HeaderValue::from_static(coral_net::HTTP_HEADER_WEBSOCKET_UPGRADE),
     );
     res.headers_mut().append(SEC_WEBSOCKET_ACCEPT, derived_hv);
     Ok(res)

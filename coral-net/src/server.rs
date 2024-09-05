@@ -1,6 +1,8 @@
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::routing::future::RouteFuture;
 use bytes::Bytes;
 use clap::Args;
 use coral_macro::trace_error;
@@ -137,14 +139,15 @@ async fn tcp_server<F>(
     router: axum::Router,
     map_req: Option<F>,
 ) where
-    F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming> + Clone,
+    F: Fn(hyper::Request<hyper::body::Incoming>, axum::Router) -> RouteFuture<Infallible> + Clone,
 {
     let peer_addr = peer_addr.clone();
     match acceptor.accept(stream).await {
         Ok(stream) => {
             let service = hyper::service::service_fn(|req: hyper::Request<_>| {
                 if let Some(f) = map_req.clone().take() {
-                    router.clone().call(f(req))
+                    // router.clone().call(f(req))
+                    f(req, router.clone())
                 } else {
                     router.clone().call(req)
                 }
@@ -394,10 +397,10 @@ impl ServerBuiler {
     }
 
     pub async fn h2_server<F>(mut self, map_req: Option<F>) -> CoralRes<()>
-    where F: Fn(hyper::Request<hyper::body::Incoming>) -> hyper::Request<hyper::body::Incoming>
-            + Clone
+    where F: Fn(hyper::Request<hyper::body::Incoming>, axum::Router) -> RouteFuture<Infallible>
             + Send
             + Sync
+            + Clone
             + 'static {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
         let tls_acceptor = TlsAcceptor::from(Arc::new(self.server_tls));

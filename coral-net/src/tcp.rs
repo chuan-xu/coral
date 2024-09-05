@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
@@ -11,14 +10,11 @@ use hyper_util::rt::TokioIo;
 use log::error;
 use rustls::pki_types;
 use rustls::ClientConfig;
-use rustls::ServerConfig;
-use tokio_rustls::TlsAcceptor;
-use tokio_rustls::TlsConnector;
 
-use crate::client::Request;
 use crate::error::CoralRes;
 
-struct TcpClient {
+#[allow(dead_code)]
+pub struct TcpClient {
     remote_addr: std::net::SocketAddr,
     remote_domain: String,
     tls_cfg: ClientConfig,
@@ -26,7 +22,8 @@ struct TcpClient {
 
 type TlsSocket = tokio_rustls::client::TlsStream<tokio::net::TcpStream>;
 
-async fn establish_tls_connection(
+#[allow(dead_code)]
+pub(crate) async fn establish_tls_connection(
     addr: &std::net::SocketAddr,
     domain: String,
     tls_conf: Arc<ClientConfig>,
@@ -232,7 +229,9 @@ impl<B> crate::client::Statistics for H2<B> {
 }
 
 /// websocket
+#[allow(dead_code)]
 struct Ws {}
 
 /// rpc
+#[allow(dead_code)]
 struct Rpc {}

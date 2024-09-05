@@ -28,17 +28,8 @@ fn get_config() -> rustls::ClientConfig {
 
 use axum::body::BodyDataStream;
 use rustls::pki_types;
-use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
 use tokio_stream::StreamExt;
-
-type HandshakeSend = hyper::client::conn::http2::SendRequest<BodyDataStream>;
-type HandshakeConn = hyper::client::conn::http2::Connection<
-    TokioIo<TlsStream<tokio::net::TcpStream>>,
-    BodyDataStream,
-    TokioExecutor,
->;
-type HandshakeSocket = (HandshakeSend, HandshakeConn);
 
 async fn h1_2() -> Result<(), coral_net::error::Error> {
     let tcp_stream = tokio::net::TcpStream::connect("server.test.com:9001").await?;
@@ -52,7 +43,7 @@ async fn h1_2() -> Result<(), coral_net::error::Error> {
     let (mut send, conn) = socket;
     tokio::spawn(async move {
         if let Err(err) = conn.await {
-            println!("http2 client disconnect");
+            println!("http2 client disconnect {:?}", err);
         }
     });
     let req = hyper::Request::builder()
@@ -178,7 +169,7 @@ async fn coral_h2_create() {
     let bs = abody.into_data_stream();
     let request = hyper::Request::builder().body(bs).unwrap();
     h2.send(request).await.unwrap();
-    let h2_clone = h2.clone();
+    let _h2_clone = h2.clone();
 }
 
 #[test]
