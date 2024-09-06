@@ -6,9 +6,6 @@ use std::sync::Arc;
 use bytes::Buf;
 use bytes::BufMut;
 use coral_runtime::tokio;
-use criterion::criterion_group;
-use criterion::criterion_main;
-use criterion::Criterion;
 use futures::future::join_all;
 use thiserror::Error;
 
@@ -41,6 +38,7 @@ async fn handle(conf: quinn::ClientConfig, addr: SocketAddr) -> Result<(), Error
     endpoints.set_default_client_config(conf);
     let conn = endpoints
         .connect(addr, "tx.coral.com")
+        // .connect(addr, "server.test.com")
         .unwrap()
         .await
         .unwrap();
@@ -94,45 +92,46 @@ async fn handle(conf: quinn::ClientConfig, addr: SocketAddr) -> Result<(), Error
     Ok(())
 }
 
-fn bench(c: &mut Criterion) {
-    c.bench_function("Concurrent test", |b| {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-            .unwrap();
-        b.to_async(rt).iter(|| async {
-            let certs = coral_net::tls::TlsParam::new(
-                Some("/root/certs/ecs/ca".into()),
-                "/root/certs/ecs/client.crt".into(),
-                "/root/certs/ecs/client.key".into(),
-            );
-            let tls_conf = coral_net::tls::client_conf(&certs).unwrap();
-            let client_config = quinn::ClientConfig::new(Arc::new(
-                quinn::crypto::rustls::QuicClientConfig::try_from(tls_conf).unwrap(),
-            ));
-            let addr = SocketAddr::new(
-                std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),
-                9001,
-            );
-            let mut tasks = vec![];
-            for _ in 0..100 {
-                let conf = client_config.clone();
-                let addr = addr.clone();
-                tasks.push(tokio::spawn(async move {
-                    if let Err(e) = handle(conf, addr).await {
-                        println!("{:?}", e);
-                    }
-                }));
+async fn parallel() {
+    let certs = coral_net::tls::TlsParam::new(
+        Some("/root/certs/ecs/ca".into()),
+        "/root/certs/ecs/client.crt".into(),
+        "/root/certs/ecs/client.key".into(),
+    );
+    // let certs = coral_net::tls::TlsParam::new(
+    //     Some("/root/certs/ca".into()),
+    //     "/root/certs/client.crt".into(),
+    //     "/root/certs/client.key".into(),
+    // );
+    let tls_conf = coral_net::tls::client_conf(&certs).unwrap();
+    let client_config = quinn::ClientConfig::new(Arc::new(
+        quinn::crypto::rustls::QuicClientConfig::try_from(tls_conf).unwrap(),
+    ));
+    let addr = SocketAddr::new(
+        std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),
+        9001,
+        // std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+        // 9001,
+    );
+    let mut tasks = vec![];
+    for _ in 0..100 {
+        let conf = client_config.clone();
+        let addr = addr.clone();
+        tasks.push(tokio::spawn(async move {
+            if let Err(e) = handle(conf, addr).await {
+                println!("{:?}", e);
             }
-            join_all(tasks).await;
-        });
-    });
+        }));
+    }
+    join_all(tasks).await;
 }
 
-fn get_config() -> Criterion {
-    Criterion::default().sample_size(10)
+#[test]
+fn run() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(parallel());
 }
-
-criterion_group!(name = benches; config = get_config(); targets = bench);
-criterion_main!(benches);

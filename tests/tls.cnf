@@ -1,0 +1,17 @@
+[tx_ext]
+subjectAltName = @tx_domain
+
+[tx_domain]
+DNS.1 = tx.coral.com
+
+[hw_ext]
+subjectAltName = @hw_domain
+
+[hw_domain]
+DNS.1 = hw.coral.com
+
+[client_ext]
+subjectAltName = @client_domain
+
+[client_domain]
+DNS.1 = client.coral.com

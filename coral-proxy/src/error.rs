@@ -1,5 +1,3 @@
-#![allow(unused)]
-use axum::http::header::ToStrError;
 use axum::http::uri::InvalidUri;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -10,7 +8,7 @@ use thiserror::Error;
 pub(crate) type CoralRes<T> = Result<T, Error>;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub(crate) enum Error {
     #[error("runtime error")]
     RuntimeErr(#[from] RuntimeErr),
 

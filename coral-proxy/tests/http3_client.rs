@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use coral_net::tls::client_conf;
@@ -13,12 +15,20 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
 
     let host = "server.test.com";
 
-    let addr = tokio::net::lookup_host((host, 4443))
-        .await
-        .unwrap()
-        .next()
-        .ok_or("dns found no addresses")
-        .unwrap();
+    // let addr = tokio::net::lookup_host((host, 9001))
+    //     .await
+    //     .unwrap()
+    //     .next()
+    //     .ok_or("dns found no addresses")
+    //     .unwrap();
+    let addr = SocketAddr::new(
+        // std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),
+        // 9001,
+        std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+        9001,
+    );
+
+    println!("addr: {:?}", addr);
 
     let tls_config = client_conf(&param).unwrap();
 
@@ -43,21 +53,32 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
     let request = async move {
         println!("sending request ...");
 
-        let uri = "https://server.test.com:4443/test_http3".parse::<hyper::http::Uri>()?;
+        let uri = "https://server.test.com:9001/benchmark".parse::<hyper::http::Uri>()?;
         // let uri = "/test_http3".parse::<hyper::http::Uri>()?;
 
-        let req = hyper::http::Request::builder().uri(uri).body(())?;
+        let req = hyper::http::Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header(hyper::header::CONTENT_LENGTH, "36")
+            .body(())?;
         println!("###################################");
 
         // sending request results in a bidirectional stream,
         // which is also used for receiving response
         let mut stream = send_request.send_request(req).await?;
 
-        // send empty body
-        // stream
-        //     .send_data(bytes::Bytes::from("hello from client"))
-        //     .await
-        //     .unwrap();
+        stream
+            .send_data(bytes::Bytes::from_static(b"1234567890"))
+            .await?;
+        stream
+            .send_data(bytes::Bytes::from_static(b"qwertyuiop"))
+            .await?;
+        stream
+            .send_data(bytes::Bytes::from_static(b"asdfghjkl"))
+            .await?;
+        stream
+            .send_data(bytes::Bytes::from_static(b"zxcvbnm"))
+            .await?;
 
         // finish on the sending side
         stream.finish().await?;
@@ -69,8 +90,6 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
         println!("response: {:?} {}", resp.version(), resp.status());
         println!("headers: {:#?}", resp.headers());
 
-        // `recv_data()` must be called after `recv_response()` for
-        // receiving potential response body
         while let Some(mut chunk) = stream.recv_data().await? {
             let mut out = tokio::io::stdout();
             out.write_all_buf(&mut chunk).await?;

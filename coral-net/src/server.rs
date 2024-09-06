@@ -169,6 +169,7 @@ where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 's
                 }
             });
         }
+        self.endpoints.wait_idle().await;
         Ok(())
     }
 
@@ -218,16 +219,12 @@ async fn quic_handle_request<U>(
     match hyper::http::Request::builder()
         .method(req.method())
         .uri(req.uri())
-        .version(req.version())
         .body(h3_recv)
     {
         Ok(mut new_req) => {
             *new_req.headers_mut() = req.headers().clone();
             *new_req.extensions_mut() = req.extensions().clone();
-            if let Err(err) =
-                // quic_handle_response(&mut tx, router.call(new_req).await.unwrap()).await
-                quic_handle_response(&mut tx, router.call(new_req)).await
-            {
+            if let Err(err) = quic_handle_response(&mut tx, router.call(new_req)).await {
                 trace_error!(e = format!("{:?}", err);"faild to handle response in quic");
             }
         }
@@ -239,7 +236,6 @@ async fn quic_handle_request<U>(
 
 async fn quic_handle_response<T>(
     tx: &mut RequestStream<T, Bytes>,
-    // rsp: axum::response::Response,
     rsp: RouteFuture<Infallible>,
 ) -> CoralRes<()>
 where
@@ -329,7 +325,7 @@ impl ServerBuiler {
 
     pub fn h3_server<F>(
         mut self,
-        mut transport_config: Option<Arc<quinn_proto::TransportConfig>>,
+        transport_config: Option<Arc<quinn_proto::TransportConfig>>,
         map_req_fn: F,
     ) -> CoralRes<H3Server<F>>
     where

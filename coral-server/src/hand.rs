@@ -4,6 +4,7 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::response::IntoResponse;
 use axum::routing::post;
+use bytes::Bytes;
 use coral_macro::trace_info;
 use coral_runtime::tokio;
 use fastrace::future::FutureExt;
@@ -29,6 +30,7 @@ async fn test_hand(req: Request) -> &'static str {
     "ok!"
 }
 
+#[allow(dead_code)]
 struct BenchmarkRes {}
 
 impl IntoResponse for BenchmarkRes {
@@ -42,9 +44,23 @@ impl IntoResponse for BenchmarkRes {
     }
 }
 
-async fn benchmark() -> BenchmarkRes {
+// #[axum::debug_handler]
+async fn benchmark(header: hyper::HeaderMap, body: Bytes) -> (hyper::StatusCode, Bytes) {
     info!("benchmark");
-    BenchmarkRes {}
+    let size = header
+        .get(hyper::header::CONTENT_LENGTH)
+        .map(|v| {
+            v.to_str()
+                .map(|x| x.parse::<usize>().unwrap_or_default())
+                .unwrap_or_default()
+        })
+        .unwrap_or_default();
+    let code = match size == body.len() {
+        true => hyper::StatusCode::OK,
+        false => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+    };
+
+    (code, body)
 }
 
 #[axum::debug_handler]

@@ -102,6 +102,9 @@ async fn h3_send_body<R>(
             }
         }
     }
+    if let Err(err) = tx.finish().await {
+        trace_error!(e = format!("{}", err); "failed to finish stream send");
+    }
 }
 
 pin_project_lite::pin_project! {
@@ -165,10 +168,11 @@ where
         let (tx, mut rx) = self.inner.send_request(request).await?.split();
         tokio::spawn(h3_send_body(BodyStream::new(req.into_body()), tx));
         let rsp = rx.recv_response().await?;
-        let response = hyper::Response::builder()
+        let mut response = hyper::Response::builder()
             .status(rsp.status())
             .version(version)
             .body(H3ClientRecv { inner: rx })?;
+        *response.headers_mut() = rsp.headers().clone();
         Ok(response)
     }
 }
