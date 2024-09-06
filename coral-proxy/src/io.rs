@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::Request;
@@ -103,9 +104,11 @@ async fn server(args: &cli::Cli) -> CoralRes<()> {
         args.server_param.port + 1,
     );
     let tls_conf = coral_net::tls::server_conf(&args.tls_param)?;
+    let mut transport_config = quinn_proto::TransportConfig::default();
+    transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
     let h3_server = coral_net::server::ServerBuiler::new(addr_h3, tls_conf.clone())
         .set_router(crate::http::app_h3())
-        .h3_server(map_req_fn_h3)?;
+        .h3_server(Some(Arc::new(transport_config)), map_req_fn_h3)?;
     tokio::spawn(async move {
         if let Err(err) = h3_server.run_server().await {
             error!(e = format!("{:?}", err); "failed to run h3 server");

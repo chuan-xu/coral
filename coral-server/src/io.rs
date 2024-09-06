@@ -1,8 +1,8 @@
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use bytes::Bytes;
-use coral_runtime::tokio;
 use log::error;
 
 use crate::cli;
@@ -13,7 +13,6 @@ async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send +
     service_address: &str,
     authority: String,
 ) -> CoralRes<()> {
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     let (addr, domain) = coral_net::client::lookup_host(service_address).await?;
     let mut sender = h3_server.create_h3_client(addr, &domain, true).await?;
     let req = hyper::Request::builder()
@@ -41,11 +40,13 @@ async fn server(args: &cli::Cli) -> CoralRes<()> {
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         args.server_param.port,
     );
+    let mut transport_config = quinn_proto::TransportConfig::default();
+    transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
     let h3_server =
         coral_net::server::ServerBuiler::new(addr, coral_net::tls::server_conf(&args.tls_param)?)
             .set_router(crate::hand::app())
             .set_client_tls(coral_net::tls::client_conf(&args.tls_param)?)
-            .h3_server(|req| req)?;
+            .h3_server(Some(Arc::new(transport_config)), |req| req)?;
 
     let authority = format!("{}:{}", args.domain, args.server_param.port);
     report(h3_server.clone(), &args.service_address, authority).await?;

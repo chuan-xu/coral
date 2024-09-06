@@ -327,16 +327,28 @@ impl ServerBuiler {
         self
     }
 
-    pub fn h3_server<F>(mut self, map_req_fn: F) -> CoralRes<H3Server<F>>
-    where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static {
-        let serv_cfg = quinn::ServerConfig::with_crypto(Arc::new(
+    pub fn h3_server<F>(
+        mut self,
+        mut transport_config: Option<Arc<quinn_proto::TransportConfig>>,
+        map_req_fn: F,
+    ) -> CoralRes<H3Server<F>>
+    where
+        F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static,
+    {
+        let mut serv_cfg = quinn::ServerConfig::with_crypto(Arc::new(
             quinn_proto::crypto::rustls::QuicServerConfig::try_from(self.server_tls.clone())?,
         ));
+        if let Some(conf) = transport_config.as_ref() {
+            serv_cfg.transport_config(conf.clone());
+        }
         let mut endpoints = quinn::Endpoint::server(serv_cfg, self.addr)?;
         if let Some(c) = self.client_tls.take() {
-            let client_cfg = quinn::ClientConfig::new(Arc::new(
+            let mut client_cfg = quinn::ClientConfig::new(Arc::new(
                 quinn::crypto::rustls::QuicClientConfig::try_from(c.clone())?,
             ));
+            if let Some(conf) = transport_config.as_ref() {
+                client_cfg.transport_config(conf.clone());
+            }
             endpoints.set_default_client_config(client_cfg);
         }
         let router = self.router.take().ok_or(crate::error::Error::MissRouter)?;
