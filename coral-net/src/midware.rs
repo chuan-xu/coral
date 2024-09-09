@@ -121,7 +121,6 @@ impl<'a> std::convert::From<&'a str> for CoralTraceId {
     }
 }
 
-/// header中添加当前trace的span id
 pub fn add_header_span_id(header: &mut HeaderMap) {
     if let Some(span) = SpanContext::current_local_parent() {
         header.insert(HTTP_HEADER_SPAN_ID, HeaderValue::from(span.span_id.0));

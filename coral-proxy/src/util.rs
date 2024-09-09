@@ -10,9 +10,6 @@ use regex::Regex;
 use crate::error::CoralRes;
 use crate::error::Error;
 
-pub static HTTP_RESET_URI: &'static str = "/reset_http";
-pub static WS_RESET_URI: &'static str = "/reset_ws";
-
 static DOT_DECIMAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
 r"^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9]):([0-9]{1,5})$"

@@ -19,10 +19,10 @@ use tower::Service;
 
 use crate::cli;
 use crate::error::CoralRes;
+use crate::http::HTTP_RESET_URI;
 use crate::http::RECV_ENDPOINTS;
-use crate::http::RESET_URI;
+use crate::http::WS_RESET_URI;
 use crate::util::reset_uri_path;
-use crate::util::WS_RESET_URI;
 use crate::ws::websocket_conn_hand;
 
 pub type T = coral_net::udp::H3;
@@ -42,7 +42,7 @@ fn map_req_h3(mut req: hyper::Request<()>, pool: Pool) -> hyper::Request<()> {
         .path_and_query()
         .map(|v| v.to_owned())
         .unwrap_or(PathAndQuery::from_static("/"));
-    if let Ok(uri) = reset_uri_path(req.uri(), RESET_URI) {
+    if let Ok(uri) = reset_uri_path(req.uri(), HTTP_RESET_URI) {
         *req.uri_mut() = uri;
     }
     req.extensions_mut().insert(path);
@@ -81,7 +81,7 @@ fn map_req_h2(
             .path_and_query()
             .map(|v| v.to_owned())
             .unwrap_or(PathAndQuery::from_static("/"));
-        if let Ok(uri) = reset_uri_path(req.uri(), RESET_URI) {
+        if let Ok(uri) = reset_uri_path(req.uri(), HTTP_RESET_URI) {
             *req.uri_mut() = uri;
         }
         req.extensions_mut().insert(path);
