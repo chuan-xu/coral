@@ -30,10 +30,6 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>) {
             let stream = TokioIo::new(io);
             let ws_stream = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
             let (mut outgoing, mut incoming) = ws_stream.split();
-            // incoming.map(|v| match v {
-            //     Ok(msg) => todo!(),
-            //     Err(err) => todo!(),
-            // })
             if let Some(res) = incoming.next().await {
                 match res {
                     Ok(msg) => {
@@ -43,11 +39,6 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>) {
                     Err(err) => error!(e = format!("{:?}", err); "failed to receive websocket mes"),
                 }
             }
-            // incoming
-            //     .try_for_each(|message| outgoing.send(message))
-            //     .await
-            //     .unwrap();
-            // incoming.forward(outgoing).await.unwrap();
         }
         Err(err) => {
             error!(e = format!("{:?}", err); "fail to upgrade in websocket stream");
@@ -55,7 +46,6 @@ pub async fn websocket_conn_hand(mut req: Request<Incoming>) {
     }
 }
 
-// pub fn websocket_hand(req: Request) -> CoralRes<hyper::Response<hyper::body::Incoming>> {
 pub async fn websocket_upgrade_hand(req: Request) -> CoralRes<Response<Body>> {
     let key = req
         .headers()

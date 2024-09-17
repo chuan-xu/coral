@@ -18,7 +18,7 @@ Options:
       --tls-ca <TLS_CA>                ca directory
       --tls-cert <TLS_CERT>            server/client certificate
       --tls-key <TLS_KEY>              server/client private
-      --dir <DIR>                      directory for storing logs
+      --dir <DIR>                      directory for store logs
       --prefix <PREFIX>                Log file name prefix
       --rotation <ROTATION>            Log file splitting period
       --otel-endpoint <OTEL_ENDPOINT>  telemetry collector address
@@ -39,7 +39,7 @@ Options:
       --tls-ca <TLS_CA>                    ca directory
       --tls-cert <TLS_CERT>                server/client certificate
       --tls-key <TLS_KEY>                  server/client private
-      --dir <DIR>                          directory for storing logs
+      --dir <DIR>                          directory for store logs
       --prefix <PREFIX>                    Log file name prefix
       --rotation <ROTATION>                Log file splitting period
       --otel-endpoint <OTEL_ENDPOINT>      telemetry collector address
@@ -53,6 +53,14 @@ Options:
 ```
 
 ## Run
+
+```bash
+# 代理服务
+./bin/coral-proxy --port 9000 --tls-ca $PWD/cicd/self_sign_cert/ca --tls-cert $PWD/cicd/self_sign_cert/server.crt --tls-key $PWD/cicd/self_sign_cert/server.key --cpui 0 --nums 2
+
+# server可启动多个节点 用于负载均衡
+./bin/coral-server --port 9002 --tls-ca $PWD/cicd/self_sign_cert/ca --tls-cert $PWD/cicd/self_sign_cert/server.crt --tls-key $PWD/cicd/self_sign_cert/server.key --domain server.test.com --service-address https://server.test.com:9001/coral-proxy-endpoints --cpui 0 --nums 2
+```
 
 需配置OpenTelemetry controller
 
