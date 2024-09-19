@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 use std::sync::Arc;
 
-use axum::routing::post;
+use axum::routing::get;
 use axum::Router;
 use bytes::Buf;
 use bytes::Bytes;
@@ -20,7 +20,7 @@ async fn hand() -> &'static str {
 }
 
 fn run_router() -> Router {
-    let r: Router = Router::new().route("/hand", post(hand));
+    let r: Router = Router::new().route("/hand", get(hand));
     r
 }
 
@@ -38,7 +38,8 @@ unsafe impl<T> Send for Recv<T> {}
 unsafe impl<T> Sync for Recv<T> {}
 
 impl<T> hyper::body::Body for Recv<T>
-where T: RecvStream
+where
+    T: RecvStream,
 {
     type Data = bytes::Bytes;
 
@@ -66,7 +67,9 @@ where T: RecvStream
 }
 
 async fn handle_request<T>(req: Request<()>, mut stream: RequestStream<T, Bytes>)
-where T: BidiStream<Bytes> + 'static {
+where
+    T: BidiStream<Bytes> + 'static,
+{
     println!("method: {:?}", req.method());
     println!("header: {:?}", req.headers());
     println!("version: {:?}", req.version());

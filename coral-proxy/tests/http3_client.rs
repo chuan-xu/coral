@@ -8,9 +8,9 @@ use coral_runtime::tokio::io::AsyncWriteExt;
 
 async fn client() -> Result<(), Box<dyn std::error::Error>> {
     let param = coral_net::tls::TlsParam {
-        tls_ca: Some(String::from("/root/certs/ca")),
-        tls_cert: String::from("/root/certs/client.crt"),
-        tls_key: String::from("/root/certs/client.key"),
+        tls_ca: Some(String::from("/root/host/coral/cicd/self_sign_cert/ca")),
+        tls_cert: String::from("/root/host/coral/cicd/self_sign_cert/client.crt"),
+        tls_key: String::from("/root/host/coral/cicd/self_sign_cert/client.key"),
     };
 
     let host = "server.test.com";

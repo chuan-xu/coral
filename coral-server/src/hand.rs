@@ -3,6 +3,7 @@ use axum::http::HeaderMap;
 use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::response::IntoResponse;
+use axum::routing::get;
 use axum::routing::post;
 use bytes::Bytes;
 use coral_macro::trace_info;
@@ -107,5 +108,6 @@ pub fn app() -> axum::Router {
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))
         .route("/trace", post(test_trace))
+        .route("/index", get(coral_net::hand::front_static))
         .layer(coral_net::midware::TraceLayer::default())
 }

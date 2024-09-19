@@ -1,6 +1,7 @@
 pub mod client;
 pub mod discover;
 pub mod error;
+pub mod hand;
 pub mod midware;
 pub mod server;
 pub mod tcp;
