@@ -1,9 +1,9 @@
+use bytes::Bytes;
+use coral_runtime::tokio;
+use log::error;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::sync::Arc;
-
-use bytes::Bytes;
-use log::error;
 
 use crate::cli;
 use crate::error::CoralRes;
@@ -36,20 +36,44 @@ async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send +
 
 async fn server(args: &cli::Cli) -> CoralRes<()> {
     args.log_param.set_traces();
-    let addr = SocketAddr::new(
+    let tls_conf = coral_net::tls::server_conf(&args.tls_param)?;
+    let addr_h2 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         args.server_param.port,
     );
+    crate::hand::H3_PORT
+        .set(args.server_param.port + 1)
+        .unwrap();
+    tokio::spawn(
+        coral_net::server::ServerBuiler::new(addr_h2, tls_conf.clone())
+            .set_router(crate::hand::upgrade_app())
+            .h2_server(Some(coral_net::hand::redirect_h2)),
+    );
+
+    let addr_h3 = SocketAddr::new(
+        std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+        args.server_param.port + 1,
+    );
     let mut transport_config = quinn_proto::TransportConfig::default();
     transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
-    let h3_server =
-        coral_net::server::ServerBuiler::new(addr, coral_net::tls::server_conf(&args.tls_param)?)
-            .set_router(crate::hand::app())
-            .set_client_tls(coral_net::tls::client_conf(&args.tls_param)?)
-            .h3_server(Some(Arc::new(transport_config)), |req| req)?;
+    let h3_server = coral_net::server::ServerBuiler::new(addr_h3, tls_conf)
+        .set_router(crate::hand::app())
+        .set_client_tls(coral_net::tls::client_conf(&args.tls_param)?)
+        .h3_server(Some(Arc::new(transport_config)), |req| req)?;
 
-    let authority = format!("{}:{}", args.domain, args.server_param.port);
-    report(h3_server.clone(), &args.service_address, authority).await?;
+    if args.domain.is_some() && args.service_address.is_some() {
+        let authority = format!(
+            "{}:{}",
+            args.domain.as_ref().unwrap(),
+            args.server_param.port + 1
+        );
+        report(
+            h3_server.clone(),
+            args.service_address.as_ref().unwrap(),
+            authority,
+        )
+        .await?;
+    }
     Ok(h3_server.run_server().await?)
 }
 

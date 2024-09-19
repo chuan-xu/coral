@@ -2,8 +2,6 @@ mod cli;
 mod error;
 mod http;
 mod io;
-mod util;
-mod ws;
 
 use error::CoralRes;
 

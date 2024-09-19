@@ -18,9 +18,8 @@ pub(crate) enum Error {
     #[error("{0} is None")]
     NoneOption(&'static str),
 
-    #[error("header {0} is None")]
-    MissingHeader(&'static str),
-
+    // #[error("header {0} is None")]
+    // MissingHeader(&'static str),
     #[error("hyper inner error")]
     HyperInner(#[from] hyper::Error),
 

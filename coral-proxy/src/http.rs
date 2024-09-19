@@ -81,13 +81,11 @@ async fn recv_endpoints(req: Request) -> CoralRes<()> {
     Ok(())
 }
 
-pub static HTTP_RESET_URI: &'static str = "/reset";
-pub static WS_RESET_URI: &'static str = "/reset_ws";
 pub static RECV_ENDPOINTS: &'static str = "/coral-proxy-endpoints";
 
 pub fn app_h3() -> axum::Router {
     let router: axum::Router = axum::Router::new()
-        .route(HTTP_RESET_URI, post(proxy))
+        .route(coral_net::hand::HTTP_RESET_URI, post(proxy))
         .route(RECV_ENDPOINTS, post(recv_endpoints))
         .layer(coral_net::midware::TraceLayer::default());
     router
@@ -95,8 +93,11 @@ pub fn app_h3() -> axum::Router {
 
 pub fn app_h2() -> axum::Router {
     let router: axum::Router = axum::Router::new()
-        .route(WS_RESET_URI, get(crate::ws::websocket_upgrade_hand))
-        .route(HTTP_RESET_URI, post(proxy))
+        .route(
+            coral_net::hand::WS_RESET_URI,
+            get(coral_net::hand::websocket_upgrade_hand),
+        )
+        .route(coral_net::hand::HTTP_RESET_URI, post(proxy))
         .layer(coral_net::midware::TraceLayer::default());
     router
 }

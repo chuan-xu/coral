@@ -1,5 +1,6 @@
 use axum::response::IntoResponse;
 use coral_runtime::Error as RuntimeErr;
+use hyper::{header::InvalidHeaderValue, StatusCode};
 use thiserror::Error;
 
 pub type CoralRes<T> = Result<T, Error>;
@@ -23,21 +24,16 @@ pub enum Error {
 
     #[error("h3 error")]
     H3Err(#[from] h3::Error),
+
+    #[error("{0} is None")]
+    NoneOption(&'static str),
+
+    #[error("failed to conver str to header")]
+    HeaderFromStrErr(#[from] InvalidHeaderValue),
 }
 
-#[derive(Debug)]
-pub enum CoralErr {}
-
-impl std::fmt::Display for CoralErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CoralErr")
-    }
-}
-
-impl std::error::Error for CoralErr {}
-
-impl IntoResponse for CoralErr {
+impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        todo!()
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self)).into_response()
     }
 }

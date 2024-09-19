@@ -12,11 +12,14 @@ use fastrace::future::FutureExt;
 use fastrace::local::LocalSpan;
 use fastrace::Span;
 use http_body_util::BodyExt;
+use hyper::header::ALT_SVC;
 use hyper::StatusCode;
 use log::info;
+use std::sync::OnceLock;
 
-#[allow(unused)]
-use crate::error::CoralErr;
+use crate::error::CoralRes;
+
+pub static H3_PORT: OnceLock<u16> = OnceLock::new();
 
 /// 健康检查
 async fn heartbeat() -> hyper::Response<axum::body::Body> {
@@ -100,6 +103,25 @@ async fn other_job() {
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
+}
+
+async fn upgrade() -> CoralRes<HeaderMap> {
+    let mut headers = HeaderMap::new();
+    let alt_svc = format!(
+        "h3=\":{}\"",
+        H3_PORT
+            .get()
+            .ok_or_else(|| crate::error::Error::NoneOption("miss h3 port"))?
+    );
+    headers.insert(ALT_SVC, HeaderValue::from_str(&alt_svc)?);
+    Ok(headers)
+}
+
+pub fn upgrade_app() -> axum::Router {
+    axum::Router::new()
+        .route(coral_net::hand::HTTP_RESET_URI, get(upgrade))
+        .route(coral_net::hand::HTTP_RESET_URI, post(upgrade))
+        .layer(coral_net::midware::TraceLayer::default())
 }
 
 pub fn app() -> axum::Router {

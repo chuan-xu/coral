@@ -18,10 +18,10 @@ pub struct Cli {
     pub runtime_param: coral_runtime::RuntimeParam,
 
     #[arg(long, help = "self can be discovered by domain")]
-    pub domain: String,
+    pub domain: Option<String>,
 
     #[arg(long, help = "service address: https://xxx.xxx.com:xx/xxx")]
-    pub service_address: String,
+    pub service_address: Option<String>,
 }
 
 impl Cli {

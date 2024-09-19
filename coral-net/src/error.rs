@@ -1,3 +1,6 @@
+use axum::response::IntoResponse;
+use hyper::header::InvalidHeaderValue;
+use hyper::StatusCode;
 use quinn::crypto::rustls::NoInitialCipherSuite;
 use rustls::pki_types::InvalidDnsNameError;
 use rustls::server::VerifierBuilderError;
@@ -15,6 +18,9 @@ pub enum Error {
 
     #[error("failed to build ca certificate")]
     CaBuildErr(#[from] VerifierBuilderError),
+
+    #[error("{0} is None")]
+    NoneOption(&'static str),
 
     #[error("failed to connect discover service")]
     DiscoverConnErr,
@@ -78,4 +84,16 @@ pub enum Error {
 
     #[error("infallible")]
     Infallible(#[from] std::convert::Infallible),
+
+    #[error("header {0} is None")]
+    MissingHeader(&'static str),
+
+    #[error("failed to conver str to header")]
+    HeaderFromStrErr(#[from] InvalidHeaderValue),
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self)).into_response()
+    }
 }
