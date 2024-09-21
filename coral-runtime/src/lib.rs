@@ -26,13 +26,14 @@ pub fn runtime(
             format!("{}-{}", th_name_pre, id)
         })
         .on_thread_start(move || {
-            if let Ok(index) = get_thread_index() {
-                if !core_affinity::set_for_current(cores[index].clone()) {
-                    log::error!("failed to core affinity");
-                }
-            } else {
-                log::error!("failed to get thread index on thread start");
-            }
+            // BUG
+            // if let Ok(index) = get_thread_index() {
+            //     if !core_affinity::set_for_current(cores[index].clone()) {
+            //         log::error!("failed to core affinity");
+            //     }
+            // } else {
+            //     log::error!("failed to get thread index on thread start");
+            // }
         })
         .build()?;
     Ok(rt)

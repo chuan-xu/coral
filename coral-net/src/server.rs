@@ -41,7 +41,8 @@ unsafe impl<T> Send for H3RecvStream<T> {}
 unsafe impl<T> Sync for H3RecvStream<T> {}
 
 impl<T> hyper::body::Body for H3RecvStream<T>
-where T: RecvStream
+where
+    T: RecvStream,
 {
     type Data = Bytes;
 
@@ -121,7 +122,8 @@ pub struct H3Server<F> {
 }
 
 impl<F> H3Server<F>
-where F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static
+where
+    F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static,
 {
     pub async fn create_h3_client(
         self,
@@ -356,11 +358,13 @@ impl ServerBuiler {
     }
 
     pub async fn h2_server<F>(mut self, map_req: Option<F>) -> CoralRes<()>
-    where F: Fn(hyper::Request<hyper::body::Incoming>, axum::Router) -> RouteFuture<Infallible>
+    where
+        F: Fn(hyper::Request<hyper::body::Incoming>, axum::Router) -> RouteFuture<Infallible>
             + Send
             + Sync
             + Clone
-            + 'static {
+            + 'static,
+    {
         let listener = tokio::net::TcpListener::bind(&self.addr).await?;
         let tls_acceptor = TlsAcceptor::from(Arc::new(self.server_tls));
         let router = self.router.take().ok_or(crate::error::Error::MissRouter)?;

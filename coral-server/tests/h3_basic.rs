@@ -3,6 +3,7 @@ use h3::quic::BidiStream;
 use h3::server::RequestStream;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -29,15 +30,16 @@ use h3::error::ErrorLevel;
 use hyper::Request;
 async fn server() {
     let param = coral_net::tls::TlsParam {
-        tls_ca: Some(String::from("/root/host/coral/cicd/self_sign_cert/ca")),
-        tls_cert: String::from("/root/host/coral/cicd/self_sign_cert/server.crt"),
-        tls_key: String::from("/root/host/coral/cicd/self_sign_cert/server.key"),
+        tls_ca: Some(String::from("/root/coral/cicd/self_sign_cert/ca")),
+        tls_cert: String::from("/root/coral/cicd/self_sign_cert/server.crt"),
+        tls_key: String::from("/root/coral/cicd/self_sign_cert/server.key"),
     };
     let tls_config = coral_net::tls::server_conf(&param).unwrap();
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(
         quinn_proto::crypto::rustls::QuicServerConfig::try_from(tls_config).unwrap(),
     ));
-    let addr = SocketAddr::from(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9001));
+    // let addr = SocketAddr::from(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9001));
+    let addr = SocketAddr::from_str("[::1]:4433").unwrap();
     let endpoint = quinn::Endpoint::server(server_config, addr).unwrap();
     while let Some(new_conn) = endpoint.accept().await {
         println!("new conn");

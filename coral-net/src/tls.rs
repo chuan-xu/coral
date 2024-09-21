@@ -13,6 +13,7 @@ use rustls::RootCertStore;
 use rustls::ServerConfig;
 use rustls_pemfile::certs;
 use rustls_pemfile::private_key;
+use serde::Deserialize;
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::error::CoralRes;
@@ -28,6 +29,19 @@ pub struct TlsParam {
 
     #[arg(long, help = "server/client private")]
     pub tls_key: String,
+}
+
+#[allow(unused)]
+#[derive(Deserialize, Debug)]
+pub struct TlsConf {
+    ca_path: Option<String>,
+    ca_files: Option<Vec<String>>,
+    cert: String,
+    key: String,
+}
+
+impl TlsConf {
+    pub fn server_conf(&self) {}
 }
 
 impl TlsParam {
@@ -87,7 +101,8 @@ pub fn server_conf(param: &TlsParam) -> CoralRes<ServerConfig> {
         certs(&mut cert_file).map(|v| v.unwrap()).collect();
     let key_der = private_key(&mut key_file)?.unwrap();
     let mut conf = ServerConfig::builder()
-        .with_client_cert_verifier(client_verifier)
+        // .with_client_cert_verifier(client_verifier)
+        .with_no_client_auth()
         .with_single_cert(cert_chain, key_der)?;
     conf.alpn_protocols = vec![b"h3".to_vec(), b"h2".to_vec(), b"http/1.1".to_vec()];
     Ok(conf)

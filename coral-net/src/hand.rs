@@ -28,7 +28,8 @@ use crate::{
 pub static HTTP_RESET_URI: &'static str = "/reset";
 pub static WS_RESET_URI: &'static str = "/reset_ws";
 
-static FRONT_ROOT: OnceLock<&str> = OnceLock::new();
+// static FRONT_ROOT: OnceLock<&str> = OnceLock::new();
+static FRONT_ROOT: &'static str = "/root/web/dist/";
 
 pub async fn front_static() -> &'static str {
     println!("debug--");
@@ -61,7 +62,8 @@ pub fn redirect_h2(
         tokio::spawn(websocket_conn_hand(req));
         router.call(reqc)
     } else {
-        redirect_router(req, router, HTTP_RESET_URI)
+        // redirect_router(req, router, HTTP_RESET_URI)
+        router.call(req)
     }
 }
 
@@ -130,4 +132,17 @@ pub async fn websocket_upgrade_hand(req: Request<axum::body::Body>) -> CoralRes<
     );
     res.headers_mut().append(SEC_WEBSOCKET_ACCEPT, derived_hv);
     Ok(res)
+}
+
+pub async fn dist(req: hyper::Request<Incoming>) {
+    // req.uri().path_and_query().unwrap().path()
+}
+
+pub fn assets_router() -> axum::Router {
+    let server_dir = tower_http::services::fs::ServeDir::new("/root/web/dist");
+    let compress = tower_http::compression::CompressionLayer::new().no_deflate();
+    axum::Router::new()
+        .nest_service("/assets", server_dir)
+        .layer(compress)
+        .layer(tower_http::decompression::DecompressionLayer::new())
 }

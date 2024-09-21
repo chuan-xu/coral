@@ -13,6 +13,8 @@ use tower::Service;
 use super::HTTP_HEADER_TRACE_ID;
 use crate::HTTP_HEADER_SPAN_ID;
 
+pub use tower_http::compression::CompressionLayer;
+
 /// midware for add trace id
 #[derive(Clone)]
 pub struct TraceMidware<S> {

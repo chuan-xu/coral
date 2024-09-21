@@ -2,6 +2,7 @@ use axum::extract::Request;
 use axum::http::HeaderMap;
 use axum::http::HeaderName;
 use axum::http::HeaderValue;
+use axum::middleware::map_response;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::routing::post;
@@ -13,6 +14,7 @@ use fastrace::local::LocalSpan;
 use fastrace::Span;
 use http_body_util::BodyExt;
 use hyper::header::ALT_SVC;
+use hyper::header::CONTENT_TYPE;
 use hyper::StatusCode;
 use log::info;
 use std::sync::OnceLock;
@@ -105,27 +107,19 @@ async fn other_job() {
     }
 }
 
-async fn upgrade() -> CoralRes<HeaderMap> {
-    let mut headers = HeaderMap::new();
-    let alt_svc = format!(
-        "h3=\":{}\"",
-        H3_PORT
-            .get()
-            .ok_or_else(|| crate::error::Error::NoneOption("miss h3 port"))?
-    );
-    headers.insert(ALT_SVC, HeaderValue::from_str(&alt_svc)?);
-    Ok(headers)
-}
-
-pub fn upgrade_app() -> axum::Router {
-    axum::Router::new()
-        .route(coral_net::hand::HTTP_RESET_URI, get(upgrade))
-        .route(coral_net::hand::HTTP_RESET_URI, post(upgrade))
-        .layer(coral_net::midware::TraceLayer::default())
+async fn alt_svc_header<B>(mut rsp: hyper::Response<B>) -> hyper::Response<B> {
+    // axum::middleware::map_response()
+    // let alt_svc = format!("h3=\":{}\";", 443);
+    rsp.headers_mut()
+        // .insert(ALT_SVC, HeaderValue::from_str(&alt_svc).unwrap());
+        .insert(ALT_SVC, HeaderValue::from_static("h3=\":443\"; ma=86400"));
+    rsp
 }
 
 pub fn app() -> axum::Router {
     axum::Router::new()
+        .nest("/server", coral_net::hand::assets_router())
+        .layer(map_response(alt_svc_header))
         .route("/heartbeat", post(heartbeat))
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))

@@ -46,13 +46,14 @@ async fn server(args: &cli::Cli) -> CoralRes<()> {
         .unwrap();
     tokio::spawn(
         coral_net::server::ServerBuiler::new(addr_h2, tls_conf.clone())
-            .set_router(crate::hand::upgrade_app())
+            .set_router(crate::hand::app())
             .h2_server(Some(coral_net::hand::redirect_h2)),
     );
 
     let addr_h3 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        args.server_param.port + 1,
+        // args.server_param.port + 1,
+        443,
     );
     let mut transport_config = quinn_proto::TransportConfig::default();
     transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
