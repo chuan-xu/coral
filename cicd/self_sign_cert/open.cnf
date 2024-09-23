@@ -1,0 +1,11 @@
+[server_ext]
+subjectAltName = @server_domain
+
+[server_domain]
+DNS.1 = server.test.com
+
+[client_ext]
+subjectAltName = @client_domain
+
+[client_domain]
+DNS.1 = client.test.com

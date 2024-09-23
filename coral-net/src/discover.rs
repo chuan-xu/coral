@@ -2,7 +2,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use clap::Args;
 use coral_runtime::tokio::net::ToSocketAddrs;
 use log::error;
 use log::info;
@@ -18,9 +17,8 @@ pub static REDIS_KEY_DISCOVER: &'static str = "svc_endpoints";
 /// 127.0.0.1:9001,127.0.0.1:9002
 static ENDPOINTS_SPLIT_TAG: u8 = 44;
 
-#[derive(Args, Debug)]
+#[derive(Debug)]
 pub struct DiscoverParam {
-    #[arg(long, help = "the uri of discover service")]
     pub discover_uri: Option<String>,
 }
 
@@ -91,7 +89,9 @@ where
 
 impl MiniRedis {
     pub async fn new<A>(addr: A) -> CoralRes<Self>
-    where A: ToSocketAddrs {
+    where
+        A: ToSocketAddrs,
+    {
         match mini_redis::Client::connect(addr).await {
             Ok(client) => Ok(Self {
                 client,

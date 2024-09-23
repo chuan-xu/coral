@@ -108,11 +108,15 @@ async fn other_job() {
 }
 
 async fn alt_svc_header<B>(mut rsp: hyper::Response<B>) -> hyper::Response<B> {
-    // axum::middleware::map_response()
-    // let alt_svc = format!("h3=\":{}\";", 443);
+    // tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     rsp.headers_mut()
         // .insert(ALT_SVC, HeaderValue::from_str(&alt_svc).unwrap());
-        .insert(ALT_SVC, HeaderValue::from_static("h3=\":443\"; ma=86400"));
+        .insert(
+            ALT_SVC,
+            HeaderValue::from_static(
+                "h3-27=\":443\"; ma=86400, h3-28=\":443\"; ma=86400, h3-29=\":443\"; ma=86400, h3=\":443\"; ma=86400",
+            ),
+        );
     rsp
 }
 

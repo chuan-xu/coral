@@ -2,17 +2,17 @@ use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use coral_net::tls::client_conf;
 use coral_runtime::tokio;
 use coral_runtime::tokio::io::AsyncWriteExt;
 
 async fn client() -> Result<(), Box<dyn std::error::Error>> {
-    let param = coral_net::tls::TlsParam {
-        tls_ca: Some(String::from("/root/host/coral/cicd/self_sign_cert/ca")),
-        tls_cert: String::from("/root/host/coral/cicd/self_sign_cert/client.crt"),
-        tls_key: String::from("/root/host/coral/cicd/self_sign_cert/client.key"),
-    };
+    let toml_str = r#"
+        ca: "/root/host/coral/cicd/self_sign_cert/ca"
+        cert: "/root/host/coral/cicd/self_sign_cert/client.crt"
+        key: "/root/host/coral/cicd/self_sign_cert/client.key"
+    "#;
 
+    let conf: coral_net::tls::TlsConf = toml::from_str(toml_str).unwrap();
     let host = "server.test.com";
 
     // let addr = tokio::net::lookup_host((host, 9001))
@@ -30,7 +30,7 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("addr: {:?}", addr);
 
-    let tls_config = client_conf(&param).unwrap();
+    let tls_config = conf.client_conf().unwrap();
 
     let client_config = quinn::ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(tls_config).unwrap(),

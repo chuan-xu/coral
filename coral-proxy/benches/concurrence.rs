@@ -6,6 +6,7 @@ use std::sync::Arc;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
+use coral_net::tls::TlsConf;
 use coral_runtime::tokio;
 use criterion::criterion_group;
 use criterion::criterion_main;
@@ -113,14 +114,15 @@ fn bench(c: &mut Criterion) {
             .build()
             .unwrap();
         b.to_async(rt).iter(|| async {
-            let certs = coral_net::tls::TlsParam::new(
-                Some("/root/certs/ecs/ca".into()),
-                "/root/certs/ecs/client.crt".into(),
-                "/root/certs/ecs/client.key".into(),
-            );
-            let tls_conf = coral_net::tls::client_conf(&certs).unwrap();
+            let toml_str = r#"
+                ca = "/root/certs/ecs/ca"
+                cert = "/root/certs/ecs/client.crt"
+                key = "/root/certs/ecs/client.key"
+            "#;
+            let tls_conf: TlsConf = toml::from_str(toml_str).unwrap();
+            let tls_client_conf = tls_conf.client_conf().unwrap();
             let client_config = quinn::ClientConfig::new(Arc::new(
-                quinn::crypto::rustls::QuicClientConfig::try_from(tls_conf).unwrap(),
+                quinn::crypto::rustls::QuicClientConfig::try_from(tls_client_conf).unwrap(),
             ));
             let addr = SocketAddr::new(
                 std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),

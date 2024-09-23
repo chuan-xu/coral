@@ -52,6 +52,9 @@ pub(crate) enum Error {
 
     #[error("utf8 error")]
     Utf8Err(#[from] std::str::Utf8Error),
+
+    #[error("parse toml")]
+    ParseTomlErr(#[from] toml::de::Error),
 }
 
 impl IntoResponse for Error {

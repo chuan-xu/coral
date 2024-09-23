@@ -739,6 +739,7 @@ version = "0.1.0"
 dependencies = [
  "coral-macro",
  "serde",
+ "serde_json",
  "toml",
 ]
 
@@ -748,7 +749,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
- "clap",
+ "coral-conf",
+ "coral-macro",
  "criterion",
  "crossbeam-channel",
  "fastrace",
@@ -760,6 +762,8 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "uuid",
@@ -784,7 +788,7 @@ dependencies = [
  "axum",
  "axum-server",
  "bytes",
- "clap",
+ "coral-conf",
  "coral-log",
  "coral-macro",
  "coral-runtime",
@@ -804,6 +808,7 @@ dependencies = [
  "rustls 0.23.12",
  "rustls-pemfile",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio-rustls 0.26.0",
  "tokio-stream",
@@ -824,6 +829,7 @@ dependencies = [
  "axum-server",
  "bytes",
  "clap",
+ "coral-conf",
  "coral-log",
  "coral-macro",
  "coral-net",
@@ -847,6 +853,7 @@ dependencies = [
  "tokio-stream",
  "tokio-tungstenite",
  "tokio-util",
+ "toml",
  "tower 0.4.13",
  "uuid",
 ]
@@ -855,10 +862,13 @@ dependencies = [
 name = "coral-runtime"
 version = "0.1.0"
 dependencies = [
- "clap",
+ "coral-conf",
+ "coral-macro",
  "core_affinity",
  "log",
  "num_cpus",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
 ]
@@ -870,6 +880,7 @@ dependencies = [
  "axum",
  "bytes",
  "clap",
+ "coral-conf",
  "coral-log",
  "coral-macro",
  "coral-net",
@@ -889,6 +900,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "toml",
  "tower 0.4.13",
 ]
 

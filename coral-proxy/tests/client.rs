@@ -104,17 +104,18 @@ async fn handle(conf: quinn::ClientConfig, addr: SocketAddr) -> Result<(), Error
 }
 
 async fn parallel() {
-    let certs = coral_net::tls::TlsParam::new(
-        Some("/root/certs/ecs/ca".into()),
-        "/root/certs/ecs/client.crt".into(),
-        "/root/certs/ecs/client.key".into(),
-    );
+    let toml_str = r#"
+        ca = "/root/certs/ecs/ca",
+        cert = "/root/certs/ecs/client.crt"
+        key = "/root/certs/ecs/client.key"
+    "#;
+    let conf: coral_net::tls::TlsConf = toml::from_str(toml_str).unwrap();
     // let certs = coral_net::tls::TlsParam::new(
     //     Some("/root/certs/ca".into()),
     //     "/root/certs/client.crt".into(),
     //     "/root/certs/client.key".into(),
     // );
-    let tls_conf = coral_net::tls::client_conf(&certs).unwrap();
+    let tls_conf = conf.client_conf().unwrap();
     let client_config = quinn::ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(tls_conf).unwrap(),
     ));

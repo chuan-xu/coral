@@ -7,6 +7,8 @@ use axum::routing::get;
 use axum::Router;
 use bytes::Buf;
 use bytes::Bytes;
+use coral_net::tls::TlsConf;
+use coral_net::tls::HTTP3_ALPN;
 use coral_runtime::tokio;
 use h3::error::ErrorLevel;
 use h3::quic::BidiStream;
@@ -110,12 +112,14 @@ where
 }
 
 async fn server() {
-    let param = coral_net::tls::TlsParam {
-        tls_ca: Some(String::from("/root/certs/ca")),
-        tls_cert: String::from("/root/certs/server.crt"),
-        tls_key: String::from("/root/certs/server.key"),
-    };
-    let tls_config = coral_net::tls::server_conf(&param).unwrap();
+    let toml_str = r#"
+        ca = "/root/coral/cicd/self_sign_cert/ca"
+        key = "/root/coral/cicd/self_sign_cert/server.crt"
+        key = "/root/coral/cicd/self_sign_cert/server.key"
+        alpn = ["h3-27", "h3-28", "h3-29", "h3"]
+    "#;
+    let conf: TlsConf = toml::from_str(toml_str).unwrap();
+    let tls_config = conf.server_conf().unwrap();
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(
         quinn_proto::crypto::rustls::QuicServerConfig::try_from(tls_config).unwrap(),
     ));

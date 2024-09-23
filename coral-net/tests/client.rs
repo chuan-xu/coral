@@ -7,8 +7,7 @@ use axum::http::HeaderValue;
 use bytes::Buf;
 use bytes::Bytes;
 use coral_net::client::Request;
-use coral_net::tls::client_conf;
-use coral_net::tls::TlsParam;
+use coral_net::tls::TlsConf;
 use coral_runtime::tokio;
 use http_body_util::BodyStream;
 use http_body_util::Full;
@@ -18,12 +17,13 @@ use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 
 fn get_config() -> rustls::ClientConfig {
-    let param = TlsParam {
-        tls_ca: Some(String::from("/root/certs/ca")),
-        tls_cert: String::from("/root/certs/client.crt"),
-        tls_key: String::from("/root/certs/client.key"),
-    };
-    client_conf(&param).unwrap()
+    let toml_str = r#"
+        ca = "/root/certs/ca"
+        cert = "/root/certs/client.crt"
+        key = "/root/certs/client.key"
+    "#;
+    let conf: TlsConf = toml::from_str(toml_str).unwrap();
+    conf.client_conf().unwrap()
 }
 
 use axum::body::BodyDataStream;

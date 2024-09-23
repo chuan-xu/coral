@@ -12,6 +12,7 @@ axum = { workspace = true, features = ["http2", "tokio"] }
 axum-server.workspace = true
 bytes.workspace = true
 clap.workspace = true
+coral-conf.workspace = true
 coral-log.workspace = true
 coral-macro.workspace = true
 coral-net.workspace = true
@@ -33,6 +34,7 @@ thiserror.workspace = true
 tokio-rustls.workspace = true
 tokio-tungstenite.workspace = true
 tokio-util = { workspace = true, default-features = false, features = ["full"] }
+toml.workspace = true
 tower = { workspace = true, features = ["full"] }
 uuid.workspace = true 
 

@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::cli;
+use crate::cli::Conf;
 use crate::error::CoralRes;
 
 async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static>(
@@ -34,43 +35,39 @@ async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send +
     Ok(())
 }
 
-async fn server(args: &cli::Cli) -> CoralRes<()> {
-    args.log_param.set_traces();
-    let tls_conf = coral_net::tls::server_conf(&args.tls_param)?;
+async fn server(conf: Conf) -> CoralRes<()> {
+    conf.log_conf.set_traces();
     let addr_h2 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        args.server_param.port,
+        conf.h2.server_conf.port,
     );
-    crate::hand::H3_PORT
-        .set(args.server_param.port + 1)
-        .unwrap();
+    crate::hand::H3_PORT.set(conf.h3.server_conf.port).unwrap();
     tokio::spawn(
-        coral_net::server::ServerBuiler::new(addr_h2, tls_conf.clone())
+        coral_net::server::ServerBuiler::new(addr_h2, conf.h2.tls_conf.server_conf()?)
             .set_router(crate::hand::app())
             .h2_server(Some(coral_net::hand::redirect_h2)),
     );
 
     let addr_h3 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        // args.server_param.port + 1,
-        443,
+        conf.h3.server_conf.port,
     );
     let mut transport_config = quinn_proto::TransportConfig::default();
     transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
-    let h3_server = coral_net::server::ServerBuiler::new(addr_h3, tls_conf)
+    let h3_server = coral_net::server::ServerBuiler::new(addr_h3, conf.h3.tls_conf.server_conf()?)
         .set_router(crate::hand::app())
-        .set_client_tls(coral_net::tls::client_conf(&args.tls_param)?)
+        // .set_client_tls()
         .h3_server(Some(Arc::new(transport_config)), |req| req)?;
 
-    if args.domain.is_some() && args.service_address.is_some() {
+    if conf.h3.server_conf.domain.is_some() && conf.h3.service_address.is_some() {
         let authority = format!(
             "{}:{}",
-            args.domain.as_ref().unwrap(),
-            args.server_param.port + 1
+            conf.h3.server_conf.domain.as_ref().unwrap(),
+            conf.h3.server_conf.port
         );
         report(
             h3_server.clone(),
-            args.service_address.as_ref().unwrap(),
+            conf.h3.service_address.as_ref().unwrap(),
             authority,
         )
         .await?;
@@ -79,10 +76,10 @@ async fn server(args: &cli::Cli) -> CoralRes<()> {
 }
 
 pub fn run() -> CoralRes<()> {
-    let args = cli::Cli::init()?;
-    let rt = coral_runtime::runtime(&args.runtime_param, "coral-server")?;
-    if let Err(err) = rt.block_on(server(&args)) {
-        error!(e = format!("{:?}", err); "block on server {:?}", args);
+    let conf = cli::Cli::init()?;
+    let rt = conf.rt_conf.runtime("coral_server")?;
+    if let Err(err) = rt.block_on(server(conf)) {
+        error!(e = format!("{:?}", err); "block on server");
     }
     Ok(())
 }

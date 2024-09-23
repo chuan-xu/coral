@@ -30,6 +30,12 @@ pub enum Error {
 
     #[error("failed to conver str to header")]
     HeaderFromStrErr(#[from] InvalidHeaderValue),
+
+    #[error("parse toml")]
+    ParseTomlErr(#[from] toml::de::Error),
+
+    #[error("serde json error")]
+    JsonErr(#[from] serde_json::error::Error),
 }
 
 impl IntoResponse for Error {

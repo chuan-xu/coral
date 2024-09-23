@@ -139,7 +139,7 @@ pub async fn dist(req: hyper::Request<Incoming>) {
 }
 
 pub fn assets_router() -> axum::Router {
-    let server_dir = tower_http::services::fs::ServeDir::new("/root/web/dist");
+    let server_dir = tower_http::services::fs::ServeDir::new("/root/host/wasm/create-wasm-app");
     let compress = tower_http::compression::CompressionLayer::new().no_deflate();
     axum::Router::new()
         .nest_service("/assets", server_dir)

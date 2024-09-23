@@ -9,6 +9,7 @@ use hyper::body::Incoming;
 use log::error;
 
 use crate::cli;
+use crate::cli::Conf;
 use crate::error::CoralRes;
 use crate::http::RECV_ENDPOINTS;
 
@@ -28,24 +29,23 @@ fn map_req_h3(mut req: hyper::Request<()>, pool: Pool) -> hyper::Request<()> {
     req
 }
 
-async fn server(args: &cli::Cli) -> CoralRes<()> {
-    args.log_param.set_traces();
+async fn server(conf: Conf) -> CoralRes<()> {
+    conf.log_conf.set_traces();
     let pool = coral_net::client::VecClients::<T, R, H>::default();
     let poolc = pool.clone();
     let map_req_fn_h3 =
         move |req: hyper::Request<()>| -> hyper::Request<()> { map_req_h3(req, poolc.clone()) };
     let addr_h2 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        args.server_param.port,
+        conf.h2.server_conf.port,
     );
     let addr_h3 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        args.server_param.port + 1,
+        conf.h3.server_conf.port,
     );
-    let tls_conf = coral_net::tls::server_conf(&args.tls_param)?;
     let mut transport_config = quinn_proto::TransportConfig::default();
     transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
-    let h3_server = coral_net::server::ServerBuiler::new(addr_h3, tls_conf.clone())
+    let h3_server = coral_net::server::ServerBuiler::new(addr_h3, conf.h3.tls_conf.server_conf()?)
         .set_router(crate::http::app_h3())
         .h3_server(Some(Arc::new(transport_config)), map_req_fn_h3)?;
     tokio::spawn(async move {
@@ -58,17 +58,19 @@ async fn server(args: &cli::Cli) -> CoralRes<()> {
             req.extensions_mut().insert(pool.clone());
             coral_net::hand::redirect_h2(req, router)
         };
-    Ok(coral_net::server::ServerBuiler::new(addr_h2, tls_conf)
-        .set_router(crate::http::app_h2())
-        .h2_server(Some(map_req_fn_h2))
-        .await?)
+    Ok(
+        coral_net::server::ServerBuiler::new(addr_h2, conf.h3.tls_conf.server_conf()?)
+            .set_router(crate::http::app_h2())
+            .h2_server(Some(map_req_fn_h2))
+            .await?,
+    )
 }
 
 pub fn run() -> CoralRes<()> {
-    let args = cli::Cli::init()?;
-    let rt = coral_runtime::runtime(&args.runtime_param, "coral-proxy")?;
-    if let Err(err) = rt.block_on(server(&args)) {
-        error!(e = format!("{:?}", err); "block on server {:?}", args);
+    let conf = cli::Cli::init()?;
+    let rt = conf.rt_conf.runtime("coral-proxy")?;
+    if let Err(err) = rt.block_on(server(conf)) {
+        error!(e = format!("{:?}", err); "block on server");
     }
     Ok(())
 }

@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use axum::routing::future::RouteFuture;
 use bytes::Bytes;
-use clap::Args;
 use coral_macro::trace_error;
 use coral_runtime::tokio::net::TcpStream;
 use coral_runtime::tokio::{self};
@@ -24,10 +23,14 @@ use tower::Service;
 
 use crate::error::CoralRes;
 
-#[derive(Args, Debug)]
-pub struct ServerParam {
-    #[arg(long, help = "server port")]
+use coral_conf::EnvAssignToml;
+use coral_macro::EnvAssign;
+use serde::Deserialize;
+
+#[derive(Deserialize, EnvAssign, Debug)]
+pub struct ServerConf {
     pub port: u16,
+    pub domain: Option<String>,
 }
 
 pin_project_lite::pin_project! {
