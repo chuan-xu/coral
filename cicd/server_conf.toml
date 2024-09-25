@@ -3,17 +3,25 @@ port = 9000
 domain = "server.test.com"
 
 [h2.tls_conf]
-ca = "./cicd/self_sign_cert/ca"
+# ca = "./cicd/self_sign_cert/ca"
 cert = "./cicd/self_sign_cert/server.crt"
 key = "./cicd/self_sign_cert/server.key"
 alpn = ["h2", "http/1.1"]
 
-[h3]
+[h3.server_conf]
 port = 9001
 domain = "server.test.com"
 
-[h3.tls]
-ca = "./cicd/self_sign_cert/ca"
+[h3.tls_conf]
+# ca = "./cicd/self_sign_cert/ca"
 cert = "./cicd/self_sign_cert/server.crt"
 key = "./cicd/self_sign_cert/server.key"
 alpn = ["h3", "h3-29", "h3-28", "h3-27"]
+
+[log_conf]
+# dir = "/root/tmp/log"
+prefix = "server"
+
+[rt_conf]
+cpui = 0
+nums = 1

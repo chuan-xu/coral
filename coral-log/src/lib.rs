@@ -17,7 +17,7 @@ pub struct LogConf {
     prefix: Option<String>,
     rotation: Option<String>,
     otel_endpoint: Option<String>,
-    otel_kvs: Vec<String>,
+    otel_kvs: Option<Vec<String>>,
 }
 
 impl LogConf {
@@ -55,9 +55,11 @@ impl LogConf {
 
     fn get_otel_kvs(&self) -> Vec<KeyValue> {
         let mut kvs = Vec::new();
-        for kv in self.otel_kvs.iter() {
-            if let Some((k, v)) = kv.split_once("=") {
-                kvs.push(KeyValue::new(k.to_owned(), v.to_owned()));
+        if let Some(otel_kvs) = self.otel_kvs.as_ref() {
+            for kv in otel_kvs.iter() {
+                if let Some((k, v)) = kv.split_once("=") {
+                    kvs.push(KeyValue::new(k.to_owned(), v.to_owned()));
+                }
             }
         }
         kvs
