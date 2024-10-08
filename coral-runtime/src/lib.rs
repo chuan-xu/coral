@@ -2,9 +2,10 @@ mod error;
 use crate::error::CoralRes;
 use coral_conf::EnvAssignToml;
 use coral_macro::EnvAssign;
+use core_affinity::CoreId;
 pub use error::Error;
 use serde::Deserialize;
-use std::sync::atomic;
+use std::{future::Future, sync::atomic};
 pub use tokio;
 
 #[derive(Deserialize, Debug, EnvAssign)]
@@ -37,6 +38,8 @@ impl RuntimeConf {
                 format!("{}-{}", th_name_pre, id)
             })
             .on_thread_start(move || {
+                #[cfg(debug_assertions)]
+                println!("[+] create runtime thread in tokio");
                 // BUG
                 // if let Ok(index) = get_thread_index() {
                 //     if !core_affinity::set_for_current(cores[index].clone()) {
@@ -45,6 +48,10 @@ impl RuntimeConf {
                 // } else {
                 //     log::error!("failed to get thread index on thread start");
                 // }
+            })
+            .on_thread_stop(|| {
+                #[cfg(debug_assertions)]
+                println!("[+] stop runtime thread in tokio");
             })
             .build()?;
         Ok(rt)
@@ -60,13 +67,29 @@ fn get_thread_index() -> Result<usize, Error> {
     Ok(usize::from_str_radix(&name[ix + 1..], 10)?)
 }
 
+// struct Core {
+//     id: CoreId,
+//     count: atomic::AtomicUsize
+// }
+
 /// 获取从`start`开始的共`nums`个的cores
 fn cpu_cores(start: usize, nums: usize) -> Result<Vec<core_affinity::CoreId>, Error> {
     let cores = core_affinity::get_core_ids().ok_or(Error::NoneCoreIds)?;
     if start + nums > cores.len() {
         return Err(Error::NoneCoreIds);
     }
+    // for i in start..nums {
+    //     if let Some(c) = cores.get(i)
+    // }
     Ok((0..nums).map(|i| cores[start + i]).collect())
+}
+
+pub fn spawn<Fut>(future: Fut) -> tokio::task::JoinHandle<Fut::Output>
+where
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
+{
+    tokio::spawn(future)
 }
 
 #[cfg(test)]
