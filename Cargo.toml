@@ -53,7 +53,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.0", features = ["full"] }
-tokio-rustls = {version = "0.26", default-features = false, features = ["tls12", "ring"]}
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"]}
 tokio-stream = { version = "0.1", default-features = false, features = ["full"] }
 tokio-tungstenite = "0.23"
 tokio-util = { version = "0.7", default-features = false, features = ["full"] }
@@ -62,6 +62,9 @@ tower ={ version = "0.4", features = ["full"] }
 tower-http = { version = "0.6.0", default-features = false, features = ["full"] }
 uuid = { version = "1.10", features = ["v4"] }
 webpki-roots = "0.26"
+
+# database
+sqlx = { version = "0.8.2", default-features = false, features = ["macros", "migrate", "runtime-tokio-rustls", "postgres"] }
 
 
 # build-dependencies
