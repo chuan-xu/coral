@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use coral_runtime::tokio;
+use coral_runtime::{spawn, tokio};
 
 use crate::error::CoralRes;
 
@@ -63,7 +63,8 @@ impl<T, R, H> Default for VecClients<T, R, H> {
 }
 
 impl<T, R, H> Clone for VecClients<T, R, H>
-where T: Clone + Statistics
+where
+    T: Clone + Statistics,
 {
     fn clone(&self) -> Self {
         Self {
@@ -96,7 +97,7 @@ where
                 instance = Some((item.clone(), item.usage_add()));
             } else if state == CLOSED {
                 let this = self.clone();
-                tokio::spawn(this.clean());
+                spawn(this.clean());
             }
         }
         Ok(instance)

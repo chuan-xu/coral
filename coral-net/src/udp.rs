@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use coral_macro::trace_error;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use http_body_util::BodyStream;
 use hyper::Version;
 use tokio_stream::StreamExt;
@@ -166,7 +166,7 @@ where
         let version = req.version();
         *request.headers_mut() = req.headers().clone();
         let (tx, mut rx) = self.inner.send_request(request).await?.split();
-        tokio::spawn(h3_send_body(BodyStream::new(req.into_body()), tx));
+        spawn(h3_send_body(BodyStream::new(req.into_body()), tx));
         let rsp = rx.recv_response().await?;
         let mut response = hyper::Response::builder()
             .status(rsp.status())

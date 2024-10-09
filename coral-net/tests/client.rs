@@ -8,7 +8,7 @@ use bytes::Buf;
 use bytes::Bytes;
 use coral_net::client::Request;
 use coral_net::tls::TlsConf;
-use coral_runtime::tokio;
+use coral_runtime::tokio::net::TcpStream;
 use http_body_util::BodyStream;
 use http_body_util::Full;
 use hyper::HeaderMap;
@@ -32,7 +32,7 @@ use tokio_rustls::TlsConnector;
 use tokio_stream::StreamExt;
 
 async fn h1_2() -> Result<(), coral_net::error::Error> {
-    let tcp_stream = tokio::net::TcpStream::connect("server.test.com:9001").await?;
+    let tcp_stream = TcpStream::connect("server.test.com:9001").await?;
     let tls_connector = tokio_rustls::TlsConnector::from(Arc::new(get_config()));
     let domain = "server.test.com".try_into()?;
     let tls_stream = tls_connector.connect(domain, tcp_stream).await?;
@@ -41,7 +41,7 @@ async fn h1_2() -> Result<(), coral_net::error::Error> {
         .await
         .unwrap();
     let (mut send, conn) = socket;
-    tokio::spawn(async move {
+    coral_runtime::spawn(async move {
         if let Err(err) = conn.await {
             println!("http2 client disconnect {:?}", err);
         }
@@ -91,7 +91,7 @@ async fn h3() {
     let quinn_conn = h3_quinn::Connection::new(conn);
 
     let (mut driver, mut send_request) = h3::client::new(quinn_conn).await.unwrap();
-    coral_runtime::tokio::spawn(async move {
+    coral_runtime::spawn(async move {
         futures::future::poll_fn(|cx| driver.poll_close(cx))
             .await
             .unwrap();
@@ -131,9 +131,7 @@ fn h3_client() {
 }
 
 async fn coral_h1_create() {
-    let stream = tokio::net::TcpStream::connect("127.0.0.1:9001")
-        .await
-        .unwrap();
+    let stream = TcpStream::connect("127.0.0.1:9001").await.unwrap();
     let domian = pki_types::ServerName::try_from("server.test.com").unwrap();
     let connector = TlsConnector::from(Arc::new(get_config()));
     let tls_socket = connector.connect(domian, stream).await.unwrap();
@@ -156,9 +154,7 @@ fn coral_h1_client() {
 }
 
 async fn coral_h2_create() {
-    let stream = tokio::net::TcpStream::connect("127.0.0.1:9001")
-        .await
-        .unwrap();
+    let stream = TcpStream::connect("127.0.0.1:9001").await.unwrap();
     let domian = pki_types::ServerName::try_from("server.test.com").unwrap();
     let connector = TlsConnector::from(Arc::new(get_config()));
     let tls_socket = connector.connect(domian, stream).await.unwrap();

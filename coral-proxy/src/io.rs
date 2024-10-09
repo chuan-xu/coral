@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::routing::future::RouteFuture;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use hyper::body::Incoming;
 use log::error;
 
@@ -48,7 +48,7 @@ async fn server(conf: Conf) -> CoralRes<()> {
     let h3_server = coral_net::server::ServerBuiler::new(addr_h3, conf.h3.tls_conf.server_conf()?)
         .set_router(crate::http::app_h3())
         .h3_server(Some(Arc::new(transport_config)), map_req_fn_h3)?;
-    tokio::spawn(async move {
+    spawn(async move {
         if let Err(err) = h3_server.run_server().await {
             error!(e = format!("{:?}", err); "failed to run h3 server");
         }

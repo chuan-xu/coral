@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use log::error;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::cli;
 use crate::cli::Conf;
 use crate::error::CoralRes;
+use crate::hand;
 
 async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send + Sync + 'static>(
     h3_server: coral_net::server::H3Server<F>,
@@ -35,16 +36,16 @@ async fn report<F: Fn(hyper::Request<()>) -> hyper::Request<()> + Clone + Send +
     Ok(())
 }
 
-async fn server(conf: Conf) -> CoralRes<()> {
+async fn server(conf: Conf, app: axum::Router) -> CoralRes<()> {
     conf.log_conf.set_traces();
     let addr_h2 = SocketAddr::new(
         std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         conf.h2.server_conf.port,
     );
     crate::hand::H3_PORT.set(conf.h3.server_conf.port).unwrap();
-    tokio::spawn(
+    spawn(
         coral_net::server::ServerBuiler::new(addr_h2, conf.h2.tls_conf.server_conf()?)
-            .set_router(crate::hand::app())
+            .set_router(app.clone())
             .h2_server(Some(coral_net::hand::redirect_h2)),
     );
 
@@ -55,7 +56,7 @@ async fn server(conf: Conf) -> CoralRes<()> {
     let mut transport_config = quinn_proto::TransportConfig::default();
     transport_config.max_idle_timeout(Some(quinn_proto::VarInt::from_u32(3600000).into()));
     let h3_server = coral_net::server::ServerBuiler::new(addr_h3, conf.h3.tls_conf.server_conf()?)
-        .set_router(crate::hand::app())
+        .set_router(app)
         // .set_client_tls()
         .h3_server(Some(Arc::new(transport_config)), |req| req)?;
 
@@ -78,7 +79,8 @@ async fn server(conf: Conf) -> CoralRes<()> {
 pub fn run() -> CoralRes<()> {
     let conf = cli::Cli::init()?;
     let rt = conf.rt_conf.runtime("coral_server")?;
-    if let Err(err) = rt.block_on(server(conf)) {
+    let app = hand::app(&conf);
+    if let Err(err) = rt.block_on(server(conf, app)) {
         error!(e = format!("{:?}", err); "block on server");
     }
     Ok(())

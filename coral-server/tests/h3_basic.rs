@@ -1,12 +1,8 @@
 use bytes::Bytes;
-use coral_net::tls::{TlsConf, HTTP3_ALPN};
+use coral_net::tls::TlsConf;
 use h3::quic::BidiStream;
 use h3::server::RequestStream;
-use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
 async fn handle_request<T>(req: Request<()>, stream: RequestStream<T, Bytes>)
 where
@@ -26,7 +22,7 @@ where
     send.finish().await.unwrap();
 }
 
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use h3::error::ErrorLevel;
 use hyper::Request;
 async fn server() {
@@ -46,7 +42,7 @@ async fn server() {
     let endpoint = quinn::Endpoint::server(server_config, addr).unwrap();
     while let Some(new_conn) = endpoint.accept().await {
         println!("new conn");
-        tokio::spawn(async {
+        spawn(async {
             let conn = new_conn.await.unwrap();
             let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn))
                 .await
@@ -54,7 +50,7 @@ async fn server() {
             loop {
                 match h3_conn.accept().await {
                     Ok(Some((req, stream))) => {
-                        tokio::spawn(async {
+                        spawn(async {
                             handle_request(req, stream).await;
                         });
                     }
@@ -79,7 +75,7 @@ async fn server() {
 
 #[test]
 fn run() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
+    let rt = coral_runtime::tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
         .build()

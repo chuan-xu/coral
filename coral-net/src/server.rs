@@ -5,8 +5,8 @@ use std::sync::Arc;
 use axum::routing::future::RouteFuture;
 use bytes::Bytes;
 use coral_macro::trace_error;
+use coral_runtime::spawn;
 use coral_runtime::tokio::net::TcpStream;
-use coral_runtime::tokio::{self};
 use h3::quic::BidiStream;
 use h3::quic::RecvStream;
 use h3::server::RequestStream;
@@ -139,11 +139,11 @@ where
             let (h3_conn, sender) = h3::server::builder()
                 .build_with_sender(h3_quinn::Connection::new(conn))
                 .await?;
-            tokio::spawn(self.quic_server(h3_conn, sender.clone()));
+            spawn(self.quic_server(h3_conn, sender.clone()));
             Ok(sender)
         } else {
             let (mut driver, sender) = h3::client::new(h3_quinn::Connection::new(conn)).await?;
-            tokio::spawn(async move {
+            spawn(async move {
                 if let Err(err) = driver.wait_idle().await {
                     error!(e = format!("{:?}", err); "failed to run quic driver");
                 }
@@ -155,7 +155,7 @@ where
     pub async fn run_server(self) -> CoralRes<()> {
         while let Some(new_conn) = self.endpoints.accept().await {
             let this = self.clone();
-            tokio::spawn(async move {
+            spawn(async move {
                 match new_conn.await {
                     Ok(conn) => {
                         match h3::server::builder()
@@ -191,7 +191,7 @@ where
                     let map_req_fn = self.map_req_fn.clone();
                     let req = map_req_fn(req);
                     let router = self.router.clone();
-                    tokio::spawn(quic_handle_request(req, stream, router));
+                    spawn(quic_handle_request(req, stream, router));
                 }
                 Ok(None) => {
                     info!("disconnect");
@@ -368,7 +368,7 @@ impl ServerBuiler {
             + Clone
             + 'static,
     {
-        let listener = tokio::net::TcpListener::bind(&self.addr).await?;
+        let listener = coral_runtime::tokio::net::TcpListener::bind(&self.addr).await?;
         let tls_acceptor = TlsAcceptor::from(Arc::new(self.server_tls));
         let router = self.router.take().ok_or(crate::error::Error::MissRouter)?;
         loop {
@@ -378,7 +378,7 @@ impl ServerBuiler {
 
                     let peer_addr = peer_addr.clone();
                     let map_req = map_req.clone();
-                    tokio::spawn(tcp_server(
+                    spawn(tcp_server(
                         acceptor,
                         stream,
                         peer_addr,

@@ -26,11 +26,29 @@ pub(crate) struct H3Conf {
 }
 
 #[derive(Deserialize, Debug, EnvAssign)]
+pub struct AssetsConf {
+    path: String,
+    dir: String,
+}
+
+impl AssetsConf {
+    pub fn service(&self) -> axum::Router {
+        let serv = tower_http::services::fs::ServeDir::new(&self.dir)
+            .precompressed_gzip()
+            .precompressed_br()
+            .precompressed_deflate()
+            .precompressed_zstd();
+        axum::Router::new().route_service(&self.path, serv)
+    }
+}
+
+#[derive(Deserialize, Debug, EnvAssign)]
 pub(crate) struct Conf {
     pub(crate) h2: H2Conf,
     pub(crate) h3: H3Conf,
     pub(crate) log_conf: coral_log::LogConf,
     pub(crate) rt_conf: coral_runtime::RuntimeConf,
+    pub(crate) assets: Option<AssetsConf>,
 }
 
 impl Cli {

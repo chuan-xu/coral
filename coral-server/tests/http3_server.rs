@@ -8,8 +8,7 @@ use axum::Router;
 use bytes::Buf;
 use bytes::Bytes;
 use coral_net::tls::TlsConf;
-use coral_net::tls::HTTP3_ALPN;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use h3::error::ErrorLevel;
 use h3::quic::BidiStream;
 use h3::quic::RecvStream;
@@ -127,7 +126,7 @@ async fn server() {
     let endpoint = quinn::Endpoint::server(server_config, addr).unwrap();
 
     while let Some(new_conn) = endpoint.accept().await {
-        tokio::spawn(async {
+        spawn(async {
             let conn = new_conn.await.unwrap();
             let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn))
                 .await
@@ -135,7 +134,7 @@ async fn server() {
             loop {
                 match h3_conn.accept().await {
                     Ok(Some((req, stream))) => {
-                        tokio::spawn(async {
+                        spawn(async {
                             handle_request(req, stream).await;
                         });
                     }
@@ -160,7 +159,7 @@ async fn server() {
 
 #[test]
 fn run() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
+    let rt = coral_runtime::tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
         .build()

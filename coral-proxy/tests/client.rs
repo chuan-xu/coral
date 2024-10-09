@@ -6,7 +6,7 @@ use std::sync::Arc;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use coral_runtime::tokio;
+use coral_runtime::{spawn, tokio};
 use futures::future::join_all;
 use h3::client::SendRequest;
 use thiserror::Error;
@@ -89,10 +89,10 @@ async fn handle(conf: quinn::ClientConfig, addr: SocketAddr) -> Result<(), Error
             .await
             .unwrap();
     };
-    tokio::spawn(drive);
+    spawn(drive);
     for _ in 0..500 {
         let sender = sender.clone();
-        tokio::spawn(async move {
+        spawn(async move {
             if let Err(err) = request(sender).await {
                 println!("{:?}", err);
             }
@@ -129,7 +129,7 @@ async fn parallel() {
     for _ in 0..20 {
         let conf = client_config.clone();
         let addr = addr.clone();
-        tasks.push(tokio::spawn(async move {
+        tasks.push(spawn(async move {
             if let Err(e) = handle(conf, addr).await {
                 println!("{:?}", e);
             }

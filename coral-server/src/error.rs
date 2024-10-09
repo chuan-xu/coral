@@ -25,9 +25,8 @@ pub enum Error {
     #[error("h3 error")]
     H3Err(#[from] h3::Error),
 
-    #[error("{0} is None")]
-    NoneOption(&'static str),
-
+    // #[error("{0} is None")]
+    // NoneOption(&'static str),
     #[error("failed to conver str to header")]
     HeaderFromStrErr(#[from] InvalidHeaderValue),
 

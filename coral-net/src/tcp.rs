@@ -4,7 +4,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use coral_macro::trace_error;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
+use coral_runtime::tokio::net::TcpStream;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use log::error;
@@ -20,7 +21,7 @@ pub struct TcpClient {
     tls_cfg: ClientConfig,
 }
 
-type TlsSocket = tokio_rustls::client::TlsStream<tokio::net::TcpStream>;
+type TlsSocket = tokio_rustls::client::TlsStream<TcpStream>;
 
 #[allow(dead_code)]
 pub(crate) async fn establish_tls_connection(
@@ -28,7 +29,7 @@ pub(crate) async fn establish_tls_connection(
     domain: String,
     tls_conf: Arc<ClientConfig>,
 ) -> CoralRes<TlsSocket> {
-    let tcp_stream = tokio::net::TcpStream::connect(addr).await?;
+    let tcp_stream = TcpStream::connect(addr).await?;
     let connector = tokio_rustls::TlsConnector::from(tls_conf);
     let domain = pki_types::ServerName::try_from(domain)?;
     let socket = connector.connect(domain, tcp_stream).await?;
@@ -71,7 +72,7 @@ where
         let (sender, conn) = builder
             .handshake::<TokioIo<TlsSocket>, B>(TokioIo::new(socket))
             .await?;
-        tokio::spawn(async move {
+        spawn(async move {
             if let Err(err) = conn.await {
                 error!(e = format!("{:?}", err); "http1 client disconnect");
             }
@@ -143,7 +144,7 @@ where
         let (sender, conn) = builder
             .handshake::<TokioIo<TlsSocket>, B>(TokioIo::new(socket))
             .await?;
-        tokio::spawn(async move {
+        spawn(async move {
             if let Err(err) = conn.await {
                 error!(e = format!("{:?}", err); "http2 client disconnect");
             }

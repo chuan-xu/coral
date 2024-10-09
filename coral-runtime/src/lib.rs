@@ -2,7 +2,6 @@ mod error;
 use crate::error::CoralRes;
 use coral_conf::EnvAssignToml;
 use coral_macro::EnvAssign;
-use core_affinity::CoreId;
 pub use error::Error;
 use serde::Deserialize;
 use std::{future::Future, sync::atomic};
@@ -14,6 +13,8 @@ pub struct RuntimeConf {
     nums: usize,
 }
 
+static ATOMIC_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+
 impl RuntimeConf {
     pub fn check(&self) -> CoralRes<()> {
         let limit = num_cpus::get();
@@ -24,41 +25,34 @@ impl RuntimeConf {
         }
     }
 
-    /// `start` - 选定的cpu核数起始索引
-    /// `nums` - 异步运行时的线程数，不包含当前线程
-    /// `th_name_pre` - 线程名前缀
     pub fn runtime(&self, th_name_pre: &'static str) -> Result<tokio::runtime::Runtime, Error> {
-        let _cores = cpu_cores(self.cpui, self.nums + 1)?;
-        let rt = tokio::runtime::Builder::new_multi_thread()
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder
             .worker_threads(self.nums)
             .enable_all()
             .thread_name_fn(move || {
-                static ATOMIC_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
                 let id = ATOMIC_ID.fetch_add(1, atomic::Ordering::SeqCst);
                 format!("{}-{}", th_name_pre, id)
-            })
-            .on_thread_start(move || {
+            });
+        let cores = cpu_cores(self.cpui, self.nums + 1);
+        if cores.len() > 0 {
+            builder.on_thread_start(move || {
                 #[cfg(debug_assertions)]
                 println!("[+] create runtime thread in tokio");
-                // BUG
-                // if let Ok(index) = get_thread_index() {
-                //     if !core_affinity::set_for_current(cores[index].clone()) {
-                //         log::error!("failed to core affinity");
-                //     }
-                // } else {
-                //     log::error!("failed to get thread index on thread start");
-                // }
-            })
-            .on_thread_stop(|| {
-                #[cfg(debug_assertions)]
-                println!("[+] stop runtime thread in tokio");
-            })
-            .build()?;
-        Ok(rt)
+                if let Ok(index) = get_thread_index() {
+                    if !core_affinity::set_for_current(cores[index % cores.len()].clone()) {
+                        log::error!("failed to core affinity");
+                    }
+                } else {
+                    log::error!("failed to get thread index on thread start");
+                }
+            });
+        }
+        Ok(builder.build()?)
     }
 }
 
-/// 从`th_name`中提取线程编号
+/// get index from thread_name
 #[allow(unused)]
 fn get_thread_index() -> Result<usize, Error> {
     let current = std::thread::current();
@@ -67,21 +61,18 @@ fn get_thread_index() -> Result<usize, Error> {
     Ok(usize::from_str_radix(&name[ix + 1..], 10)?)
 }
 
-// struct Core {
-//     id: CoreId,
-//     count: atomic::AtomicUsize
-// }
-
-/// 获取从`start`开始的共`nums`个的cores
-fn cpu_cores(start: usize, nums: usize) -> Result<Vec<core_affinity::CoreId>, Error> {
-    let cores = core_affinity::get_core_ids().ok_or(Error::NoneCoreIds)?;
-    if start + nums > cores.len() {
-        return Err(Error::NoneCoreIds);
+fn cpu_cores(start: usize, nums: usize) -> Vec<core_affinity::CoreId> {
+    let mut cores = Vec::with_capacity(nums);
+    if let Some(ids) = core_affinity::get_core_ids() {
+        for i in 0..nums {
+            if let Some(core) = ids.get(start + i) {
+                cores.push(core.clone());
+            } else {
+                break;
+            }
+        }
     }
-    // for i in start..nums {
-    //     if let Some(c) = cores.get(i)
-    // }
-    Ok((0..nums).map(|i| cores[start + i]).collect())
+    cores
 }
 
 pub fn spawn<Fut>(future: Fut) -> tokio::task::JoinHandle<Fut::Output>
@@ -94,13 +85,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn get_cpu_cores() {
-        let cpus = num_cpus::get();
-        assert!(cpu_cores(1, cpus).is_err());
-    }
 
     #[test]
     fn split_thname() {

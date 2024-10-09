@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use bytes::Bytes;
-use coral_runtime::tokio;
+use coral_runtime::{spawn, tokio};
 use http_body_util::StreamBody;
 use hyper::body::Frame;
 use hyper_util::rt::TokioIo;
@@ -17,13 +17,13 @@ async fn handle() {
         .handshake(io)
         .await
         .unwrap();
-    tokio::spawn(async move {
+    spawn(async move {
         if let Err(err) = conn.await {
             println!("{:?}", err);
         }
     });
     let (tx, rx) = tokio::sync::mpsc::channel::<Data>(10);
-    tokio::spawn(async move {
+    spawn(async move {
         tx.send(Ok(Frame::data(Bytes::from_static(b"hello"))))
             .await
             .unwrap();

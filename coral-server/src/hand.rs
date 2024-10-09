@@ -4,22 +4,18 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::middleware::map_response;
 use axum::response::IntoResponse;
-use axum::routing::get;
 use axum::routing::post;
 use bytes::Bytes;
 use coral_macro::trace_info;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use fastrace::future::FutureExt;
 use fastrace::local::LocalSpan;
 use fastrace::Span;
 use http_body_util::BodyExt;
 use hyper::header::ALT_SVC;
-use hyper::header::CONTENT_TYPE;
 use hyper::StatusCode;
 use log::info;
 use std::sync::OnceLock;
-
-use crate::error::CoralRes;
 
 pub static H3_PORT: OnceLock<u16> = OnceLock::new();
 
@@ -81,10 +77,10 @@ async fn test_trace() -> &'static str {
     "record trace"
 }
 
-fn parallel_job() -> Vec<tokio::task::JoinHandle<()>> {
+fn parallel_job() -> Vec<coral_runtime::tokio::task::JoinHandle<()>> {
     let mut v = Vec::with_capacity(4);
     for i in 0..4 {
-        v.push(tokio::spawn(
+        v.push(spawn(
             iter_job(i).in_span(Span::enter_with_local_parent("iter job")),
         ));
     }
@@ -93,7 +89,7 @@ fn parallel_job() -> Vec<tokio::task::JoinHandle<()>> {
 
 async fn iter_job(iter: u64) {
     std::thread::sleep(std::time::Duration::from_millis(iter * 10));
-    tokio::task::yield_now().await;
+    coral_runtime::tokio::task::yield_now().await;
     other_job().await;
 }
 
@@ -101,7 +97,7 @@ async fn iter_job(iter: u64) {
 async fn other_job() {
     for i in 0..20 {
         if i == 10 {
-            tokio::task::yield_now().await;
+            coral_runtime::tokio::task::yield_now().await;
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
@@ -120,14 +116,16 @@ async fn alt_svc_header<B>(mut rsp: hyper::Response<B>) -> hyper::Response<B> {
     rsp
 }
 
-pub fn app() -> axum::Router {
-    axum::Router::new()
-        .nest("/server", coral_net::hand::assets_router())
+pub fn app(conf: &crate::cli::Conf) -> axum::Router {
+    let router = match conf.assets.as_ref() {
+        Some(f) => f.service(),
+        None => axum::Router::new(),
+    };
+    router
         .layer(map_response(alt_svc_header))
         .route("/heartbeat", post(heartbeat))
         .route("/testhand", post(test_hand))
         .route("/benchmark", post(benchmark))
         .route("/trace", post(test_trace))
-        .route("/index", get(coral_net::hand::front_static))
         .layer(coral_net::midware::TraceLayer::default())
 }

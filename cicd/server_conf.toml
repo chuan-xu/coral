@@ -25,3 +25,7 @@ prefix = "server"
 [rt_conf]
 cpui = 0
 nums = 1
+
+[assets]
+path = "/"
+dir = ""

@@ -7,7 +7,7 @@ use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
 use coral_net::tls::TlsConf;
-use coral_runtime::tokio;
+use coral_runtime::spawn;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::Criterion;
@@ -92,10 +92,10 @@ async fn handle(conf: quinn::ClientConfig, addr: SocketAddr) -> Result<(), Error
             .await
             .unwrap();
     };
-    tokio::spawn(drive);
+    spawn(drive);
     for _ in 0..500 {
         let sender = sender.clone();
-        tokio::spawn(async move {
+        spawn(async move {
             if let Err(err) = request(sender).await {
                 println!("{:?}", err);
             }
@@ -108,7 +108,7 @@ async fn handle(conf: quinn::ClientConfig, addr: SocketAddr) -> Result<(), Error
 
 fn bench(c: &mut Criterion) {
     c.bench_function("Concurrent test", |b| {
-        let rt = tokio::runtime::Builder::new_multi_thread()
+        let rt = coral_runtime::tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
@@ -132,7 +132,7 @@ fn bench(c: &mut Criterion) {
             for _ in 0..20 {
                 let conf = client_config.clone();
                 let addr = addr.clone();
-                tasks.push(tokio::spawn(async move {
+                tasks.push(spawn(async move {
                     if let Err(e) = handle(conf, addr).await {
                         println!("{:?}", e);
                     }
