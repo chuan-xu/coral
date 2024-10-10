@@ -119,12 +119,7 @@ async fn parallel() {
     let client_config = quinn::ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(tls_conf).unwrap(),
     ));
-    let addr = SocketAddr::new(
-        std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),
-        9001,
-        // std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-        // 9001,
-    );
+    let addr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9001);
     let mut tasks = vec![];
     for _ in 0..20 {
         let conf = client_config.clone();

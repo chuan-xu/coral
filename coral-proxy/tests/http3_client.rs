@@ -21,12 +21,7 @@ async fn client() -> Result<(), Box<dyn std::error::Error>> {
     //     .next()
     //     .ok_or("dns found no addresses")
     //     .unwrap();
-    let addr = SocketAddr::new(
-        // std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),
-        // 9001,
-        std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-        9001,
-    );
+    let addr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9001);
 
     println!("addr: {:?}", addr);
 

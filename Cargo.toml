@@ -65,6 +65,7 @@ webpki-roots = "0.26"
 
 # database
 sqlx = { version = "0.8.2", default-features = false, features = ["macros", "migrate", "runtime-tokio-rustls", "postgres"] }
+sqlx-core = { version = "0.8.2", default-features = false, features = ["migrate", "json", "_rt-tokio", "_tls-rustls-ring", "_tls-rustls"] }
 
 
 # build-dependencies

@@ -124,10 +124,7 @@ fn bench(c: &mut Criterion) {
             let client_config = quinn::ClientConfig::new(Arc::new(
                 quinn::crypto::rustls::QuicClientConfig::try_from(tls_client_conf).unwrap(),
             ));
-            let addr = SocketAddr::new(
-                std::net::IpAddr::V4(Ipv4Addr::new(111, 229, 180, 248)),
-                9001,
-            );
+            let addr = SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9001);
             let mut tasks = vec![];
             for _ in 0..20 {
                 let conf = client_config.clone();

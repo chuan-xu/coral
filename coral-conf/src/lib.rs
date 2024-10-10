@@ -11,6 +11,7 @@ env_assign_basic!(i64);
 env_assign_basic!(f32);
 env_assign_basic!(f64);
 env_assign_basic!(usize);
+env_assign_basic!(bool);
 
 impl<T: EnvAssignToml> EnvAssignToml for Option<T> {
     fn assign(&mut self, prefix: Option<&str>) -> std::result::Result<(), serde_json::Error> {

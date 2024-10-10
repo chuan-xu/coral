@@ -1,6 +1,5 @@
 pub mod client;
-pub mod data;
-pub mod discover;
+pub mod db;
 pub mod error;
 pub mod hand;
 pub mod midware;

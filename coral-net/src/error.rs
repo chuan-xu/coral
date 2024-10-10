@@ -90,6 +90,14 @@ pub enum Error {
 
     #[error("failed to conver str to header")]
     HeaderFromStrErr(#[from] InvalidHeaderValue),
+
+    // ---------- log ----------
+    #[error("log::ParseLevelError")]
+    LogParseLevelError(#[from] log::ParseLevelError),
+
+    // ---------- db ----------
+    #[error("sqlx::error")]
+    SqlxErr(#[from] sqlx::Error),
 }
 
 impl IntoResponse for Error {

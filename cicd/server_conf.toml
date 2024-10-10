@@ -29,3 +29,21 @@ nums = 1
 [assets]
 path = "/"
 dir = ""
+
+[db.pool]
+max_connections = 5
+
+[db.postgres]
+host = ""
+port = 5432
+# socket = ""
+username = "postgres"
+password = ""
+database = "postgres"
+ssl_mode = "prefer" # or verify-ca
+# ssl_root_cert = ""
+# ssl_client_cert = ""
+# ssl_client_key = ""
+# statement_cache_capacity = 100
+# application_name = ""
+# log_settings = {}
