@@ -43,3 +43,4 @@ webpki-roots.workspace = true
 # database
 sqlx.workspace = true
 sqlx-core.workspace = true
+redis.workspace = true

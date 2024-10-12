@@ -2,6 +2,11 @@ use std::str::FromStr;
 
 use coral_conf::EnvAssignToml;
 use coral_macro::EnvAssign;
+use futures::FutureExt;
+use redis::{
+    aio::{ConnectionLike, ConnectionManager, MultiplexedConnection},
+    cluster_async::ClusterConnection,
+};
 use serde::Deserialize;
 use sqlx::ConnectOptions;
 
@@ -149,4 +154,85 @@ impl DbConf {
         }
         Ok(None)
     }
+}
+
+#[derive(Deserialize, EnvAssign, Debug)]
+enum RedisConf {
+    // TODO:
+    Single(String),
+}
+
+#[derive(Clone)]
+pub enum RedisClient {
+    MultiConn(MultiplexedConnection),
+    ManagerConn(ConnectionManager),
+    ClusterConn(ClusterConnection),
+}
+
+impl ConnectionLike for RedisClient {
+    fn req_packed_command<'a>(
+        &'a mut self,
+        cmd: &'a redis::Cmd,
+    ) -> redis::RedisFuture<'a, redis::Value> {
+        match self {
+            RedisClient::MultiConn(t) => t.req_packed_command(cmd),
+            RedisClient::ManagerConn(t) => t.req_packed_command(cmd),
+            RedisClient::ClusterConn(t) => t.req_packed_command(cmd),
+        }
+    }
+
+    fn req_packed_commands<'a>(
+        &'a mut self,
+        cmd: &'a redis::Pipeline,
+        offset: usize,
+        count: usize,
+    ) -> redis::RedisFuture<'a, Vec<redis::Value>> {
+        match self {
+            RedisClient::MultiConn(t) => t.req_packed_commands(cmd, offset, count),
+            RedisClient::ManagerConn(t) => t.req_packed_commands(cmd, offset, count),
+            RedisClient::ClusterConn(t) => t.req_packed_commands(cmd, offset, count),
+        }
+    }
+
+    fn get_db(&self) -> i64 {
+        match self {
+            RedisClient::MultiConn(t) => t.get_db(),
+            RedisClient::ManagerConn(t) => t.get_db(),
+            RedisClient::ClusterConn(t) => t.get_db(),
+        }
+    }
+}
+
+async fn conn() {
+    // let conn_addr = redis::ConnectionAddr::TcpTls { host: String::from("111.229.180.248"), port: 6379, insecure: , tls_params:  }
+    let conn_addr = redis::ConnectionAddr::Tcp(String::from("111.229.180.248"), 6379);
+    // redis::Client::build_with_tls(, )
+    let redis_info = redis::RedisConnectionInfo {
+        db: 0,
+        username: None,
+        password: Some(String::from("112233zts")),
+        protocol: redis::ProtocolVersion::RESP3,
+    };
+    let conn_info = redis::ConnectionInfo {
+        addr: conn_addr,
+        redis: redis_info,
+    };
+    let client = redis::Client::open(conn_info).unwrap();
+    let mut mconn = client.get_multiplexed_tokio_connection().await.unwrap();
+    let res = redis::cmd("GET")
+        .arg("name")
+        .query_async::<String>(&mut mconn)
+        .await
+        .unwrap();
+    println!("{:?}", res);
+    // redis::cluster::ClusterClient
+    // redis::Client::build_with_tls(, )
+
+    // redis::Client::build_with_tls(, )
+    // redis::ClientTlsConfig::
+
+    // config = redis::aio::ConnectionManagerConfig::new().set_push_sender()
+    // client.get_connection_manager_with_config()
+    // let manager = client.get_connection_manager().await.unwrap();
+    // redis::Client::build_with_tls(, )
 }

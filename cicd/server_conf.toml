@@ -47,3 +47,44 @@ ssl_mode = "prefer" # or verify-ca
 # statement_cache_capacity = 100
 # application_name = ""
 # log_settings = {}
+
+[redis.Single]
+host = ""
+port = 6379
+insecure = false
+# tls_params = { root_cert_store = "", client_cert = "", client_key = "" }
+db = 0
+# username = ""
+password = ""
+protol_version = ""
+conn_type = "manager" # manager multi
+
+# [redis.Cluster]
+# password = ""
+# username = ""
+# read_from_replicas = false
+# insecure = false
+# tls_params = { root_cert_store = "", client_cert = "", client_key = "" }
+# connection_timeout = 0
+# response_timeout = 0
+# protocol = 0
+
+
+# [redis.cluster.retry_params]
+# number_of_retries = 0
+# max_wait_time = 0
+# min_wait_time = 0
+# exponent_base = 0
+# factor = 0
+
+
+# Vec<ConnectionInfo>
+# [[redis.cluster.info]]
+# host = ""
+# port = 6379
+# insecure = false
+# # tls_params = { root_cert_store = "", client_cert = "", client_key = "" }
+# db = 0
+# # username = ""
+# password = ""
+# protol_version = ""

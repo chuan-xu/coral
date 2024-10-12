@@ -45,3 +45,20 @@ fn test_postgres_conn() {
         .unwrap();
     rt.block_on(conn_postgres());
 }
+
+#[test]
+fn test_toml() {
+    use serde::Deserialize;
+    #[derive(Deserialize, Debug)]
+    #[allow(unused)]
+    enum Conf {
+        Name(String),
+        Age(i32),
+    }
+
+    let t = r#"
+        name = "123"
+    "#;
+    let c: Conf = toml::from_str(t).unwrap();
+    println!("{:?}", c);
+}
