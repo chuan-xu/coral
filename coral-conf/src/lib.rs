@@ -44,59 +44,16 @@ impl<T: serde::de::DeserializeOwned> EnvAssignToml for Vec<T> {
     }
 }
 
+/// Assign values using environment variables, Commonly use `coral_macro::EnvAssign`
+///
+/// # Example
+///
+/// ```rust
+/// let mut a = 11;
+/// std::env::set_var("CORAL_A", "13");
+/// a.assign(Some("CORAL_A")).unwrap();
+/// assert_eq!(a, 13);
+/// ```
 pub trait EnvAssignToml {
     fn assign(&mut self, prefix: Option<&str>) -> std::result::Result<(), serde_json::Error>;
-}
-
-mod test {
-    use crate::EnvAssignToml;
-    use coral_macro::EnvAssign;
-    use serde::Deserialize;
-
-    #[derive(EnvAssign, Deserialize, Debug)]
-    struct H2 {
-        port: u16,
-        domain: String,
-    }
-
-    #[derive(EnvAssign, Deserialize, Debug)]
-    struct H3 {
-        port: u16,
-        domain: String,
-        tls: Option<TlsParam>,
-    }
-
-    #[derive(EnvAssign, Deserialize, Debug)]
-    struct TlsParam {
-        ca: String,
-        cert: String,
-        key: String,
-    }
-
-    #[derive(EnvAssign, Deserialize, Debug)]
-    struct Config {
-        h2: H2,
-        h3: H3,
-    }
-
-    #[test]
-    fn run() {
-        let toml_str = r#"
-            [h2]
-            port = 9000
-            domain = "server.test.com"
-
-            [h3]
-            port = 9001
-            domain = "server.test.com"
-
-            [h3.tls]
-            ca = ""
-            cert = ""
-            key = ""
-        "#;
-        let mut conf: Config = toml::from_str(toml_str).unwrap();
-        conf.assign(Some("CORAL_SERVER")).unwrap();
-        println!("{:?}", conf);
-    }
 }
