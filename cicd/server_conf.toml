@@ -56,8 +56,17 @@ insecure = false
 db = 0
 # username = ""
 password = ""
-protol_version = ""
-conn_type = "manager" # manager multi
+protocol = 1 # 0 => RESP2   1 => RESP3
+
+[redis.Single.config]
+Manager = {
+  # exponent_base = 0
+  # factor = 0
+  # number_of_retries = 0
+  # max_delay = 0
+  # response_timeout = 0
+  # connection_timeout = 0
+}
 
 # [redis.Cluster]
 # password = ""
@@ -69,8 +78,7 @@ conn_type = "manager" # manager multi
 # response_timeout = 0
 # protocol = 0
 
-
-# [redis.cluster.retry_params]
+# [redis.Cluster.retry_params]
 # number_of_retries = 0
 # max_wait_time = 0
 # min_wait_time = 0
@@ -79,7 +87,7 @@ conn_type = "manager" # manager multi
 
 
 # Vec<ConnectionInfo>
-# [[redis.cluster.info]]
+# [[redis.Cluster.info]]
 # host = ""
 # port = 6379
 # insecure = false
@@ -87,4 +95,4 @@ conn_type = "manager" # manager multi
 # db = 0
 # # username = ""
 # password = ""
-# protol_version = ""
+# protocol = 0

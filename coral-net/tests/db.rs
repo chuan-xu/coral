@@ -1,7 +1,5 @@
 use coral_net::db::DbConf;
 use coral_runtime::tokio;
-use sqlx::Executor;
-use tokio_stream::StreamExt;
 
 fn postgres_toml() -> DbConf {
     let t = r#"
@@ -20,6 +18,7 @@ fn postgres_toml() -> DbConf {
 }
 
 #[derive(sqlx::FromRow, Debug)]
+#[allow(unused)]
 struct TestItem {
     id: i32,
     name: String,
@@ -46,19 +45,38 @@ fn test_postgres_conn() {
     rt.block_on(conn_postgres());
 }
 
-#[test]
-fn test_toml() {
-    use serde::Deserialize;
-    #[derive(Deserialize, Debug)]
-    #[allow(unused)]
-    enum Conf {
-        Name(String),
-        Age(i32),
-    }
-
-    let t = r#"
-        name = "123"
+async fn conn_redis() {
+    let conf_str = r#"
+        [Single]
+        host = ""
+        port = 6379
+        db = 0
+        password = ""
+        protocol = 1
+        [Single.config.Manager]
+        connection_timeout = 2
     "#;
-    let c: Conf = toml::from_str(t).unwrap();
-    println!("{:?}", c);
+    let conf: coral_net::db::RedisConf = toml::from_str(conf_str).unwrap();
+    let mut client = conf.client(None).await.unwrap();
+    redis::cmd("set")
+        .arg("test_conn_key")
+        .arg("test_conn")
+        .query_async::<()>(&mut client)
+        .await
+        .unwrap();
+    let name = redis::cmd("get")
+        .arg("test_conn_key")
+        .query_async::<String>(&mut client)
+        .await
+        .unwrap();
+    assert_eq!(name, "test_conn");
+}
+
+#[test]
+fn test_redis_conn() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(conn_redis());
 }

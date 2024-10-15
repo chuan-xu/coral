@@ -98,6 +98,13 @@ pub enum Error {
     // ---------- db ----------
     #[error("sqlx::error")]
     SqlxErr(#[from] sqlx::Error),
+
+    // ---------- redis ----------
+    #[error("redis::RedisError")]
+    RedisErr(#[from] redis::RedisError),
+
+    #[error("invalid redis conn type")]
+    InvalidConnType,
 }
 
 impl IntoResponse for Error {

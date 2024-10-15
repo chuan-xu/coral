@@ -31,6 +31,8 @@ pub static WS_RESET_URI: &'static str = "/reset_ws";
 pub fn redirect_h2(
     req: hyper::Request<Incoming>,
     mut router: axum::Router,
+    // dbh: Option<crate::db::PgPool>,
+    // rdh: Option<crate::db::RedisClient>,
 ) -> axum::routing::future::RouteFuture<std::convert::Infallible> {
     let headers = req.headers();
     if headers

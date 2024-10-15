@@ -11,7 +11,7 @@ use coral_conf::EnvAssignToml;
 use coral_macro::EnvAssign;
 use serde::Deserialize;
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub struct LogConf {
     dir: Option<String>,
     prefix: Option<String>,

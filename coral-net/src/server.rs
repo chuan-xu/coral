@@ -27,7 +27,7 @@ use coral_conf::EnvAssignToml;
 use coral_macro::EnvAssign;
 use serde::Deserialize;
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub struct ServerConf {
     pub port: u16,
     pub domain: Option<String>,

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::{future::Future, sync::atomic};
 pub use tokio;
 
-#[derive(Deserialize, Debug, EnvAssign)]
+#[derive(Deserialize, Debug, EnvAssign, Clone)]
 pub struct RuntimeConf {
     cpui: usize,
     nums: usize,

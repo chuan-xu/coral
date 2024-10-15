@@ -1,8 +1,7 @@
-use std::str::FromStr;
+use std::{io::Read, str::FromStr};
 
 use coral_conf::EnvAssignToml;
 use coral_macro::EnvAssign;
-use futures::FutureExt;
 use redis::{
     aio::{ConnectionLike, ConnectionManager, MultiplexedConnection},
     cluster_async::ClusterConnection,
@@ -12,14 +11,14 @@ use sqlx::ConnectOptions;
 
 use crate::error::CoralRes;
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub(crate) struct LogSettings {
     pub(crate) statements_level: String,
     pub(crate) slow_statements_level: String,
     pub(crate) slow_statements_duration: u64,
 }
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub(crate) struct PgConnectOptions {
     pub(crate) host: String,
     pub(crate) port: u16,
@@ -81,7 +80,7 @@ impl TryFrom<&PgConnectOptions> for sqlx::postgres::PgConnectOptions {
     }
 }
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub(crate) struct PoolOptions {
     pub(crate) test_before_acquire: Option<bool>,
     pub(crate) max_connections: Option<u32>,
@@ -135,14 +134,16 @@ impl<DB: sqlx::Database> TryFrom<&PoolOptions> for sqlx::pool::PoolOptions<DB> {
     }
 }
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub struct DbConf {
     pool: Option<PoolOptions>,
     postgres: Option<PgConnectOptions>,
 }
 
+pub type PgPool = sqlx::Pool<sqlx::Postgres>;
+
 impl DbConf {
-    pub async fn postgres(&self) -> CoralRes<Option<sqlx::Pool<sqlx::Postgres>>> {
+    pub async fn postgres(&self) -> CoralRes<Option<PgPool>> {
         if let Some(pool_options) = self.pool.as_ref() {
             if let Some(pg_conn_options) = self.postgres.as_ref() {
                 return Ok(Some(
@@ -156,10 +157,194 @@ impl DbConf {
     }
 }
 
-#[derive(Deserialize, EnvAssign, Debug)]
-enum RedisConf {
-    // TODO:
-    Single(String),
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+struct RedisTls {
+    root_cert_store: Option<String>,
+    client_cert: Option<String>,
+    client_key: Option<String>,
+}
+
+impl TryFrom<&RedisTls> for redis::TlsCertificates {
+    type Error = crate::error::Error;
+
+    fn try_from(value: &RedisTls) -> Result<Self, Self::Error> {
+        let mut this = Self {
+            client_tls: None,
+            root_cert: None,
+        };
+        if value.client_cert.is_some() && value.client_key.is_some() {
+            let mut cert_fd = std::fs::File::open(value.client_cert.as_ref().unwrap())?;
+            let mut key_fd = std::fs::File::open(value.client_key.as_ref().unwrap())?;
+            let mut cert_buf = Vec::new();
+            let mut key_buf = Vec::new();
+            cert_fd.read_to_end(&mut cert_buf)?;
+            key_fd.read_to_end(&mut key_buf)?;
+            this.client_tls = Some(redis::ClientTlsConfig {
+                client_cert: cert_buf,
+                client_key: key_buf,
+            });
+        }
+        if let Some(v) = value.root_cert_store.as_ref() {
+            let mut fd = std::fs::File::open(v)?;
+            let mut buf = Vec::new();
+            fd.read_to_end(&mut buf)?;
+            this.root_cert = Some(buf);
+        }
+        Ok(this)
+    }
+}
+
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+pub struct RedisSingle {
+    host: String,
+    port: u16,
+    insecure: bool,
+    tls_params: Option<RedisTls>,
+    db: Option<i64>,
+    username: Option<String>,
+    password: Option<String>,
+    protocol: Option<u16>,
+    config: RedisSingleConf,
+}
+
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+enum RedisSingleConf {
+    Manager(RedisConnManagerConf), // TODO: Multi
+}
+
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+struct RedisConnManagerConf {
+    exponent_base: Option<u64>,
+    /// A multiplicative factor that will be applied to the retry delay.
+    ///
+    /// For example, using a factor of `1000` will make each delay in units of seconds.
+    factor: Option<u64>,
+    /// number_of_retries times, with an exponentially increasing delay
+    number_of_retries: Option<usize>,
+    /// Apply a maximum delay between connection attempts. The delay between attempts won't be longer than max_delay milliseconds.
+    max_delay: Option<u64>,
+    /// The new connection will time out operations after `response_timeout` has passed.
+    response_timeout: Option<u64>,
+    /// Each connection attempt to the server will time out after `connection_timeout`.
+    connection_timeout: Option<u64>,
+}
+
+impl From<&RedisConnManagerConf> for redis::aio::ConnectionManagerConfig {
+    fn from(value: &RedisConnManagerConf) -> Self {
+        let mut this = Self::default();
+        if let Some(v) = value.exponent_base {
+            this = this.set_exponent_base(v);
+        }
+        if let Some(v) = value.factor {
+            this = this.set_factor(v);
+        }
+        if let Some(v) = value.number_of_retries {
+            this = this.set_number_of_retries(v);
+        }
+        if let Some(v) = value.max_delay {
+            this = this.set_max_delay(v);
+        }
+        if let Some(v) = value.response_timeout {
+            this = this.set_response_timeout(std::time::Duration::from_secs(v));
+        }
+        if let Some(v) = value.connection_timeout {
+            this = this.set_connection_timeout(std::time::Duration::from_secs(v));
+        }
+        this
+    }
+}
+
+impl From<&RedisSingle> for redis::RedisConnectionInfo {
+    fn from(value: &RedisSingle) -> Self {
+        let mut this = Self::default();
+        if let Some(v) = value.db {
+            this.db = v;
+        }
+        if let Some(v) = value.username.as_ref() {
+            this.username = Some(v.to_owned());
+        }
+        if let Some(v) = value.password.as_ref() {
+            this.password = Some(v.to_owned());
+        }
+        this.protocol = value.protocol.map_or(redis::ProtocolVersion::RESP2, |x| {
+            if x == 1 {
+                redis::ProtocolVersion::RESP3
+            } else {
+                redis::ProtocolVersion::RESP2
+            }
+        });
+        this
+    }
+}
+
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+struct RedisRetryParams {
+    number_of_retries: u32,
+    max_wait_time: u64,
+    min_wait_time: u64,
+    exponent_base: u64,
+    factor: u64,
+}
+
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+pub struct RedisCluster {
+    password: Option<String>,
+    username: Option<String>,
+    read_from_replicas: Option<bool>,
+    insecure: bool,
+    retry_params: Option<RedisRetryParams>,
+    tls_params: Option<RedisTls>,
+    connection_timeout: Option<u64>,
+    response_timeout: Option<u64>,
+    protocol: Option<u16>,
+}
+
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
+pub enum RedisConf {
+    Single(RedisSingle),
+    Cluster(RedisCluster),
+}
+
+pub type RedisAsyncPushSender = coral_runtime::tokio::sync::mpsc::UnboundedSender<redis::PushInfo>;
+
+impl RedisConf {
+    pub async fn client(&self, push_sender: Option<RedisAsyncPushSender>) -> CoralRes<RedisClient> {
+        match self {
+            RedisConf::Single(single) => {
+                let info = redis::RedisConnectionInfo::from(single);
+                let client = match single.tls_params.as_ref() {
+                    Some(tls) => {
+                        let addr = redis::ConnectionAddr::TcpTls {
+                            host: single.host.clone(),
+                            port: single.port,
+                            insecure: single.insecure,
+                            tls_params: None,
+                        };
+                        redis::Client::build_with_tls(
+                            redis::ConnectionInfo { addr, redis: info },
+                            redis::TlsCertificates::try_from(tls)?,
+                        )?
+                    }
+                    None => {
+                        let addr = redis::ConnectionAddr::Tcp(single.host.clone(), single.port);
+                        redis::Client::open(redis::ConnectionInfo { addr, redis: info })?
+                    }
+                };
+                match &single.config {
+                    RedisSingleConf::Manager(conf) => {
+                        let mut conn_conf = redis::aio::ConnectionManagerConfig::from(conf);
+                        if let Some(sender) = push_sender {
+                            conn_conf = conn_conf.set_push_sender(sender);
+                        }
+                        let rc = client.get_connection_manager_with_config(conn_conf).await?;
+                        Ok(RedisClient::ManagerConn(rc))
+                    }
+                }
+                // client.get_multiplexed_async_connection_with_config()
+            }
+            RedisConf::Cluster(_) => todo!(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -201,38 +386,4 @@ impl ConnectionLike for RedisClient {
             RedisClient::ClusterConn(t) => t.get_db(),
         }
     }
-}
-
-async fn conn() {
-    // let conn_addr = redis::ConnectionAddr::TcpTls { host: String::from("111.229.180.248"), port: 6379, insecure: , tls_params:  }
-    let conn_addr = redis::ConnectionAddr::Tcp(String::from("111.229.180.248"), 6379);
-    // redis::Client::build_with_tls(, )
-    let redis_info = redis::RedisConnectionInfo {
-        db: 0,
-        username: None,
-        password: Some(String::from("112233zts")),
-        protocol: redis::ProtocolVersion::RESP3,
-    };
-    let conn_info = redis::ConnectionInfo {
-        addr: conn_addr,
-        redis: redis_info,
-    };
-    let client = redis::Client::open(conn_info).unwrap();
-    let mut mconn = client.get_multiplexed_tokio_connection().await.unwrap();
-    let res = redis::cmd("GET")
-        .arg("name")
-        .query_async::<String>(&mut mconn)
-        .await
-        .unwrap();
-    println!("{:?}", res);
-    // redis::cluster::ClusterClient
-    // redis::Client::build_with_tls(, )
-
-    // redis::Client::build_with_tls(, )
-    // redis::ClientTlsConfig::
-
-    // config = redis::aio::ConnectionManagerConfig::new().set_push_sender()
-    // client.get_connection_manager_with_config()
-    // let manager = client.get_connection_manager().await.unwrap();
-    // redis::Client::build_with_tls(, )
 }

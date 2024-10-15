@@ -25,7 +25,7 @@ use crate::error::Error;
 pub static HTTP2_ALPN: [&str; 2] = ["h2", "http/1.1"];
 pub static HTTP3_ALPN: [&str; 4] = ["h3-27", "h3-28", "h3-29", "h3"];
 
-#[derive(Deserialize, EnvAssign, Debug)]
+#[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub struct TlsConf {
     ca: Option<String>,
     cert: String,
