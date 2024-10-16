@@ -26,7 +26,7 @@ struct TestItem {
 
 async fn conn_postgres() {
     let db_conf = postgres_toml();
-    let conn = db_conf.postgres().await.unwrap().unwrap();
+    let conn = db_conf.postgres().unwrap().unwrap().await.unwrap();
     let id = 1;
     let db_res = sqlx::query_as::<_, TestItem>("SELECT * FROM test where id = $1")
         .bind(id)
@@ -57,7 +57,7 @@ async fn conn_redis() {
         connection_timeout = 2
     "#;
     let conf: coral_net::db::RedisConf = toml::from_str(conf_str).unwrap();
-    let mut client = conf.client(None).await.unwrap();
+    let mut client = conf.client(None).unwrap().await.unwrap();
     redis::cmd("set")
         .arg("test_conn_key")
         .arg("test_conn")

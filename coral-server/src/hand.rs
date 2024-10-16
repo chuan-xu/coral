@@ -4,6 +4,7 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::middleware::map_response;
 use axum::response::IntoResponse;
+use axum::routing::get;
 use axum::routing::post;
 use bytes::Bytes;
 use coral_macro::trace_info;
@@ -116,7 +117,7 @@ async fn alt_svc_header<B>(mut rsp: hyper::Response<B>) -> hyper::Response<B> {
     rsp
 }
 
-pub fn app(conf: &crate::cli::Conf) -> axum::Router {
+pub fn router(conf: &crate::cli::Conf) -> axum::Router {
     let router = match conf.assets.as_ref() {
         Some(f) => f.service(),
         None => axum::Router::new(),

@@ -58,15 +58,13 @@ db = 0
 password = ""
 protocol = 1 # 0 => RESP2   1 => RESP3
 
-[redis.Single.config]
-Manager = {
-  # exponent_base = 0
-  # factor = 0
-  # number_of_retries = 0
-  # max_delay = 0
-  # response_timeout = 0
-  # connection_timeout = 0
-}
+[redis.Single.config.Manager]
+# exponent_base = 0
+# factor = 0
+# number_of_retries = 0
+# max_delay = 0
+# response_timeout = 0
+# connection_timeout = 2
 
 # [redis.Cluster]
 # password = ""

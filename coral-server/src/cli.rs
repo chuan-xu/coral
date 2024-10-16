@@ -38,7 +38,7 @@ impl AssetsConf {
             .precompressed_br()
             .precompressed_deflate()
             .precompressed_zstd();
-        axum::Router::new().route_service(&self.path, serv)
+        axum::Router::new().nest_service(&self.path, serv)
     }
 }
 

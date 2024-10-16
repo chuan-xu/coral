@@ -47,9 +47,14 @@ impl LogConf {
         Ok(())
     }
 
-    pub fn set_traces(&self) {
+    pub fn set_traces(&self) -> Option<impl FnOnce()> {
         if let Some(endpoint) = self.otel_endpoint.as_ref() {
-            traces::otel_trace(endpoint, self.get_otel_kvs())
+            let otel_kvs = self.get_otel_kvs();
+            let endpoint = endpoint.to_owned();
+            let t = Some(move || traces::otel_trace(endpoint, otel_kvs));
+            t
+        } else {
+            None
         }
     }
 

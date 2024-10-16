@@ -10,6 +10,7 @@ use serde::Deserialize;
 use sqlx::ConnectOptions;
 
 use crate::error::CoralRes;
+pub use sqlx::Error as SqlxErr;
 
 #[derive(Deserialize, EnvAssign, Debug, Clone)]
 pub(crate) struct LogSettings {
@@ -143,14 +144,16 @@ pub struct DbConf {
 pub type PgPool = sqlx::Pool<sqlx::Postgres>;
 
 impl DbConf {
-    pub async fn postgres(&self) -> CoralRes<Option<PgPool>> {
+    pub fn postgres(
+        &self,
+    ) -> CoralRes<Option<futures::future::BoxFuture<'static, CoralRes<PgPool>>>> {
         if let Some(pool_options) = self.pool.as_ref() {
             if let Some(pg_conn_options) = self.postgres.as_ref() {
-                return Ok(Some(
-                    sqlx::pool::PoolOptions::<sqlx::Postgres>::try_from(pool_options)?
-                        .connect_with(sqlx::postgres::PgConnectOptions::try_from(pg_conn_options)?)
-                        .await?,
-                ));
+                let pool_options =
+                    sqlx::pool::PoolOptions::<sqlx::Postgres>::try_from(pool_options)?;
+                let pg_conn_options = sqlx::postgres::PgConnectOptions::try_from(pg_conn_options)?;
+                let fut = async move { Ok(pool_options.connect_with(pg_conn_options).await?) };
+                return Ok(Some(Box::pin(fut)));
             }
         }
         Ok(None)
@@ -308,7 +311,10 @@ pub enum RedisConf {
 pub type RedisAsyncPushSender = coral_runtime::tokio::sync::mpsc::UnboundedSender<redis::PushInfo>;
 
 impl RedisConf {
-    pub async fn client(&self, push_sender: Option<RedisAsyncPushSender>) -> CoralRes<RedisClient> {
+    pub fn client(
+        &self,
+        push_sender: Option<RedisAsyncPushSender>,
+    ) -> CoralRes<futures::future::BoxFuture<'static, CoralRes<RedisClient>>> {
         match self {
             RedisConf::Single(single) => {
                 let info = redis::RedisConnectionInfo::from(single);
@@ -336,8 +342,12 @@ impl RedisConf {
                         if let Some(sender) = push_sender {
                             conn_conf = conn_conf.set_push_sender(sender);
                         }
-                        let rc = client.get_connection_manager_with_config(conn_conf).await?;
-                        Ok(RedisClient::ManagerConn(rc))
+                        let fut = async move {
+                            Ok(RedisClient::ManagerConn(
+                                client.get_connection_manager_with_config(conn_conf).await?,
+                            ))
+                        };
+                        Ok(Box::pin(fut))
                     }
                 }
                 // client.get_multiplexed_async_connection_with_config()
