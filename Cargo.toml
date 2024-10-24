@@ -7,6 +7,8 @@ members = [
   "coral-proxy",
   "coral-runtime",
   "coral-server",
+  "coral-wasm/gamelife",
+  "coral-wasm/payload",
 ]
 
 [workspace.package]
@@ -30,6 +32,7 @@ coral-runtime = { path = "coral-runtime" }
 core_affinity = "0.8"
 crossbeam-channel = "0.5"
 fastrace = { version = "0.7", features = ["enable"] }
+fixedbitset = "0.5.7"
 futures = "0.3"
 h3 = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "388753b6bbc7ac31d13e2508eadb67c8bf2ea145"}
 h3-quinn = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "388753b6bbc7ac31d13e2508eadb67c8bf2ea145"}
@@ -67,6 +70,9 @@ webpki-roots = "0.26"
 sqlx = { version = "0.8.2", default-features = false, features = ["macros", "migrate", "runtime-tokio-rustls", "postgres"] }
 sqlx-core = { version = "0.8.2", default-features = false, features = ["migrate", "json", "_rt-tokio", "_tls-rustls-ring", "_tls-rustls"] }
 redis = { version = "0.27.4", default-features = false, features = ["acl", "streams", "geospatial", "script", "keep-alive", "tokio-comp", "tokio-rustls-comp", "connection-manager", "cluster-async"] }
+
+# wasm
+wasm-bindgen = { version = "0.2.95" }
 
 
 # build-dependencies

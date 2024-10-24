@@ -4,7 +4,6 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::middleware::map_response;
 use axum::response::IntoResponse;
-use axum::routing::get;
 use axum::routing::post;
 use bytes::Bytes;
 use coral_macro::trace_info;
