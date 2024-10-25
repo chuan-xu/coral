@@ -2,6 +2,12 @@ use proc_macro::TokenStream;
 
 mod env_assign;
 mod trace_log;
+mod wasm;
+
+#[proc_macro_derive(WasmAttr)]
+pub fn wasm_attribute(input: TokenStream) -> TokenStream {
+    wasm::wasm_attribute(input)
+}
 
 #[proc_macro]
 pub fn env_assign_basic(input: TokenStream) -> TokenStream {

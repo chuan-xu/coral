@@ -865,6 +865,9 @@ dependencies = [
  "hyper-util",
  "log",
  "pin-project-lite",
+ "prost",
+ "prost-build",
+ "prost-types",
  "quinn",
  "quinn-proto",
  "serde",
@@ -2277,6 +2280,13 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 [[package]]
 name = "payload"
 version = "0.1.0"
+dependencies = [
+ "coral-macro",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "pem-rfc7468"

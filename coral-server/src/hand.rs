@@ -116,6 +116,9 @@ async fn alt_svc_header<B>(mut rsp: hyper::Response<B>) -> hyper::Response<B> {
     rsp
 }
 
+// TODO: will test wasm protobuf in frontend
+async fn test_payload(req: Request) {}
+
 pub fn router(conf: &crate::cli::Conf) -> axum::Router {
     let router = match conf.assets.as_ref() {
         Some(f) => f.service(),
