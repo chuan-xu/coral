@@ -17,24 +17,7 @@ pub struct Token {
     pub nbf: u64,
     #[prost(uint64, tag = "8")]
     pub iat: u64,
+    /// string sig = 10;
     #[prost(uint64, tag = "9")]
     pub jti: u64,
-    #[prost(string, tag = "10")]
-    pub sig: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Request {
-    #[prost(message, optional, tag = "1")]
-    pub token: ::core::option::Option<Token>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub payload: ::prost::alloc::vec::Vec<u8>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Response {
-    #[prost(uint32, tag = "1")]
-    pub status: u32,
-    #[prost(string, tag = "2")]
-    pub msg: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "3")]
-    pub payload: ::prost::alloc::vec::Vec<u8>,
 }

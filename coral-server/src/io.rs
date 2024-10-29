@@ -151,25 +151,6 @@ impl Conf {
             coral_net::server::ServerBuiler::new(addr_h3, self.h3.tls_conf.server_conf()?)
                 .set_router(router);
         Ok(builder)
-        // // .set_client_tls()
-        // .h3_server(Some(Arc::new(transport_config)), |req| req)?;
-
-        // let port = self.h3.server_conf.port;
-        // let domain = self.h3.server_conf.domain.clone();
-        // let service_address = self.h3.service_address.clone();
-        // let fut = async move {
-        //     if domain.is_some() && service_address.is_some() {
-        //         let authority = format!("{}:{}", domain.as_ref().unwrap(), port);
-        //         report(
-        //             h3_server.clone(),
-        //             service_address.as_ref().unwrap(),
-        //             authority,
-        //         )
-        //         .await?;
-        //     }
-        //     Ok(h3_server.run_server().await?)
-        // };
-        // Ok(Box::pin(fut))
     }
 }
 

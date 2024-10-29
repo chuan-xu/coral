@@ -4,7 +4,9 @@ mod cli;
 mod error;
 mod hand;
 mod io;
+mod midware;
 mod payload;
+mod user;
 use log::error;
 fn main() -> CoralRes<()> {
     let conf = cli::Cli::init()?;

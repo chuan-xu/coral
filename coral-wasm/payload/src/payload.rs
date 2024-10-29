@@ -19,28 +19,7 @@ pub(crate) struct Token {
     pub(crate) nbf: u64,
     #[prost(uint64, tag = "8")]
     pub(crate) iat: u64,
+    /// string sig = 10;
     #[prost(uint64, tag = "9")]
     pub(crate) jti: u64,
-    #[prost(string, tag = "10")]
-    pub(crate) sig: ::prost::alloc::string::String,
-}
-#[wasm_bindgen::prelude::wasm_bindgen]
-#[derive(coral_macro::WasmAttr)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub(crate) struct Request {
-    #[prost(message, optional, tag = "1")]
-    pub(crate) token: ::core::option::Option<Token>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub(crate) payload: ::prost::alloc::vec::Vec<u8>,
-}
-#[wasm_bindgen::prelude::wasm_bindgen]
-#[derive(coral_macro::WasmAttr)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub(crate) struct Response {
-    #[prost(uint32, tag = "1")]
-    pub(crate) status: u32,
-    #[prost(string, tag = "2")]
-    pub(crate) msg: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "3")]
-    pub(crate) payload: ::prost::alloc::vec::Vec<u8>,
 }

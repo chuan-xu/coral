@@ -11,9 +11,5 @@ fn main() -> std::io::Result<()> {
         &["../coral-wasm/protos/payload.proto"],
         &["../coral-wasm/protos/"],
     )?;
-    // let payload_rs_file = protos_path.join("payload.rs");
-    // let content = std::fs::read_to_string(&payload_rs_file)?;
-    // let modified_content = content.replace("pub ", "pub(crate) ");
-    // std::fs::write(&payload_rs_file, modified_content)?;
     Ok(())
 }

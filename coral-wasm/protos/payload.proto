@@ -12,16 +12,5 @@ message Token {
   uint64 nbf = 7;
   uint64 iat = 8;
   uint64 jti = 9;
-  string sig = 10;
-}
-
-message Request {
-  Token token = 1;
-  bytes payload = 2;
-}
-
-message Response {
-  uint32 status = 1;
-  string msg = 2;
-  bytes payload = 3;
+  // string sig = 10;
 }
