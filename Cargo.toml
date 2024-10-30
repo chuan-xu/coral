@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [ 
+  "coral-captcha", 
   "coral-conf",
   "coral-log",
   "coral-net",
