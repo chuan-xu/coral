@@ -7,3 +7,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+image.workspace = true
+fontdue.workspace = true
+nalgebra.workspace = true
+thiserror.workspace = true

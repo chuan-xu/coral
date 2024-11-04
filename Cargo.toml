@@ -34,6 +34,7 @@ core_affinity = "0.8"
 crossbeam-channel = "0.5"
 fastrace = { version = "0.7", features = ["enable"] }
 fixedbitset = "0.5.7"
+fontdue = { version = "0.9.2" }
 futures = "0.3"
 h3 = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "388753b6bbc7ac31d13e2508eadb67c8bf2ea145"}
 h3-quinn = { git = "https://github.com/chuan-xu/coral-h3.git", recv = "388753b6bbc7ac31d13e2508eadb67c8bf2ea145"}
@@ -42,8 +43,10 @@ http-body-util = "0.1"
 hyper = { version = "1.4.0", features = ["full"] }
 # hyper-rustls = { version = "0.27", default-features = false, features = ["ring", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["full"] }
+image = { version = "0.25.4" }
 local-ip-address = "0.6"
 log = { version = "0.4", features = ["std","kv", "kv_unstable", "kv_std"] }
+nalgebra = "0.33"
 num_cpus = "1.16"
 pin-project-lite = "0.2"
 prost = "0.13"
