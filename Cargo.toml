@@ -46,7 +46,6 @@ hyper-util = { version = "0.1", features = ["full"] }
 image = { version = "0.25.4" }
 local-ip-address = "0.6"
 log = { version = "0.4", features = ["std","kv", "kv_unstable", "kv_std"] }
-nalgebra = "0.33"
 num_cpus = "1.16"
 pin-project-lite = "0.2"
 prost = "0.13"
