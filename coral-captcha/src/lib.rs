@@ -368,6 +368,7 @@ mod test {
 
     #[test]
     fn gen_txt_captcha() {
+        let start = std::time::Instant::now();
         let cs = "你好啊世界".chars();
         let img = TxtClickCaptchaBuilder::new()
             .set_total_chars(cs)
@@ -377,11 +378,18 @@ mod test {
             .set_box_size(60.0, 60.0)
             .rgba8()
             .unwrap();
+        println!("1 {:?}", start.elapsed().as_millis());
         let font_settings = fontdue::FontSettings::default();
+        println!("2 {:?}", start.elapsed().as_millis());
         let font_data = std::fs::read("/root/host/simkai.ttf").unwrap();
+        println!("3 {:?}", start.elapsed().as_millis());
+        // 字体的加载很慢
         let font = fontdue::Font::from_bytes(font_data.as_slice(), font_settings).unwrap();
+        println!("4 {:?}", start.elapsed().as_millis());
         let (buf, _, _) = img.generate(font).unwrap();
+        println!("5 {:?}", start.elapsed().as_millis());
         std::fs::write("/root/host/dist/demo.png", buf).unwrap();
+        println!("6 {:?}", start.elapsed().as_millis());
         // img.buf
         //     .save_with_format("/root/host/dist/demo.png", image::ImageFormat::Png)
         //     .unwrap();
